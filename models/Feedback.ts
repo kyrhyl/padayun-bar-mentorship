@@ -1,9 +1,11 @@
 import { Model, Schema, model, models } from "mongoose";
 
-interface ClrBreakdown {
-  conclusion: number;
+interface RubricBreakdown {
+  correctResponse: number;
   law: number;
   reasoning: number;
+  logic: number;
+  grammar: number;
 }
 
 export interface FeedbackDocument {
@@ -11,31 +13,43 @@ export interface FeedbackDocument {
   submissionId: string;
   mentorId: string;
   score: number;
-  clr: ClrBreakdown;
+  rubric: RubricBreakdown;
   comments: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const clrSchema = new Schema<ClrBreakdown>(
+const rubricSchema = new Schema<RubricBreakdown>(
   {
-    conclusion: {
+    correctResponse: {
       type: Number,
       required: true,
       min: 0,
-      max: 100,
+      max: 1,
     },
     law: {
       type: Number,
       required: true,
-      min: 0,
-      max: 100,
+      min: 1,
+      max: 5,
     },
     reasoning: {
       type: Number,
       required: true,
       min: 0,
-      max: 100,
+      max: 1,
+    },
+    logic: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 1,
+    },
+    grammar: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 1,
     },
   },
   { _id: false },
@@ -58,11 +72,11 @@ const feedbackSchema = new Schema<FeedbackDocument>(
       type: Number,
       required: true,
       min: 0,
-      max: 100,
+      max: 5,
       index: true,
     },
-    clr: {
-      type: clrSchema,
+    rubric: {
+      type: rubricSchema,
       required: true,
     },
     comments: {

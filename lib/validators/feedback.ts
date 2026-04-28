@@ -1,12 +1,17 @@
 import { z } from "zod";
 
-const scorePart = z.coerce.number().min(0).max(100);
+const quarterStep = z.coerce
+  .number()
+  .min(0)
+  .refine((value) => Number.isInteger(value * 4), "Score must be in 0.25 steps.");
 
 export const feedbackFormSchema = z.object({
   submissionId: z.string().min(1),
-  conclusion: scorePart,
-  law: scorePart,
-  reasoning: scorePart,
+  correctResponse: quarterStep.max(1),
+  law: quarterStep.max(1),
+  reasoning: quarterStep.max(1),
+  logic: quarterStep.max(1),
+  grammar: quarterStep.max(1),
   comments: z.string().trim().min(10).max(4000),
 });
 

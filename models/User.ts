@@ -8,6 +8,8 @@ export interface UserDocument {
   email: string;
   passwordHash: string;
   role: UserRole;
+  assignmentAvailability?: "available" | "unavailable";
+  unavailableCycleId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +37,17 @@ const userSchema = new Schema<UserDocument>(
       type: String,
       enum: USER_ROLES,
       required: true,
+    },
+    assignmentAvailability: {
+      type: String,
+      enum: ["available", "unavailable"],
+      default: "available",
+      index: true,
+    },
+    unavailableCycleId: {
+      type: String,
+      default: null,
+      index: true,
     },
   },
   {

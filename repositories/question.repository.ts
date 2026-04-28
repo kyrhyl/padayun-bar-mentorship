@@ -9,6 +9,13 @@ interface ListQuestionsParams {
   limit: number;
 }
 
+interface QuestionPoolParams {
+  subject?: string;
+  topic?: string;
+  difficulties?: QuestionDocument["difficulty"][];
+  tags?: string[];
+}
+
 export async function createQuestion(data: {
   subject: string;
   topic: string;
@@ -93,4 +100,29 @@ export async function listQuestionsByIds(questionIds: string[]): Promise<Questio
   }
 
   return QuestionModel.find({ _id: { $in: questionIds } }).lean<QuestionDocument[]>().exec();
+}
+
+export async function listQuestionIdsByPool(params: QuestionPoolParams): Promise<string[]> {
+  await connectToDatabase();
+
+  const filter: Record<string, unknown> = {};
+
+  if (params.subject) {
+    filter.subject = { $regex: params.subject, $options: "i" };
+  }
+
+  if (params.topic) {
+    filter.topic = { $regex: params.topic, $options: "i" };
+  }
+
+  if (params.difficulties?.length) {
+    filter.difficulty = { $in: params.difficulties };
+  }
+
+  if (params.tags?.length) {
+    filter.tags = { $in: params.tags.map((tag) => tag.toLowerCase()) };
+  }
+
+  const items = await QuestionModel.find(filter).select({ _id: 1 }).lean<Array<{ _id: string }>>().exec();
+  return items.map((item) => item._id.toString());
 }

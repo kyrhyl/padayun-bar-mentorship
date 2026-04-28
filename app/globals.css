@@ -1,13 +1,57 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f7f9fb;
+  --foreground: #191c1e;
+  --surface: #ffffff;
+  --surface-subtle: #f2f4f6;
+  --surface-strong: #eceef0;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --muted: #64748b;
+  --primary: #0f172a;
+  --primary-hover: #1e293b;
+  --ring: rgba(15, 23, 42, 0.2);
+  --success: #047857;
+  --success-bg: #ecfdf5;
+  --warn: #b45309;
+  --warn-bg: #fffbeb;
+  --danger: #be123c;
+  --danger-bg: #fff1f2;
+  --shadow-card: 0 4px 12px rgba(15, 23, 42, 0.05);
+  --shadow-card-hover: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+.dark {
+  --background: #0f1418;
+  --foreground: #eff1f3;
+  --surface: #171d22;
+  --surface-subtle: #1f252b;
+  --surface-strong: #252d35;
+  --border: #2b3642;
+  --border-strong: #3b4754;
+  --muted: #a8b3bf;
+  --primary: #dbe7ff;
+  --primary-hover: #becde8;
+  --ring: rgba(219, 231, 255, 0.25);
+  --success: #6ee7b7;
+  --success-bg: #052e26;
+  --warn: #fcd34d;
+  --warn-bg: #3b2f10;
+  --danger: #fda4af;
+  --danger-bg: #3a131b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-strong: var(--surface-strong);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -17,3 +61,52 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), sans-serif;
 }
+
+.ui-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-card);
+}
+
+.ui-card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.ui-input {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--foreground);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.ui-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.ui-btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.9rem;
+}
+
+.ui-btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.ui-btn-secondary {
+  background: var(--surface);
+  color: var(--foreground);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.9rem;
+}
+
+.ui-badge-success { background: var(--success-bg); color: var(--success); }
+.ui-badge-warn { background: var(--warn-bg); color: var(--warn); }
+.ui-badge-danger { background: var(--danger-bg); color: var(--danger); }

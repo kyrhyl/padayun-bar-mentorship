@@ -8,6 +8,36 @@ interface MenteeSubmissionDetailPageProps {
   params: Promise<{ submissionId: string }>;
 }
 
+function resolveRubric(feedback: {
+  rubric?: { correctResponse: number; law: number; reasoning: number; logic: number; grammar: number };
+  clr?: { conclusion: number; law: number; reasoning: number };
+} | null) {
+  if (feedback?.rubric) {
+    return feedback.rubric;
+  }
+
+  if (feedback?.clr) {
+    return {
+      correctResponse: Math.max(0, Math.min(1, feedback.clr.conclusion / 5)),
+      law: Math.max(0, Math.min(1, feedback.clr.law / 5)),
+      reasoning: Math.max(0, Math.min(1, feedback.clr.reasoning / 5)),
+      logic: 0,
+      grammar: 0,
+    };
+  }
+
+  return null;
+}
+
+function sanitizeFeedbackHtml(input: string) {
+  return input
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/\son\w+="[^"]*"/gi, "")
+    .replace(/\son\w+='[^']*'/gi, "")
+    .replace(/javascript:/gi, "");
+}
+
 export default async function MenteeSubmissionDetailPage({ params }: MenteeSubmissionDetailPageProps) {
   const session = await requireRole(["mentee", "admin"]);
   const { submissionId } = await params;
@@ -21,14 +51,96 @@ export default async function MenteeSubmissionDetailPage({ params }: MenteeSubmi
     notFound();
   }
 
+  const answerMap = new Map(
+    (detail.submission.answers ?? []).map((item) => [item.questionId, item.answer]),
+  );
+  const rubric = resolveRubric(detail.feedback as { rubric?: { correctResponse: number; law: number; reasoning: number; logic: number; grammar: number }; clr?: { conclusion: number; law: number; reasoning: number } } | null);
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Submission Detail</h1>
-        <Link href="/mentee" className="text-sm text-slate-700 underline">
+        <Link href="/mentee/dashboard" className="text-sm text-slate-700 underline">
           Back to dashboard
         </Link>
       </div>
+
+      {detail.questions.length === 0 ? (
+        <article className="space-y-3 rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="text-lg font-semibold text-slate-900">Question 1</h2>
+          <p className="text-sm text-slate-600">Prompt unavailable.</p>
+          <div className="grid gap-4 border-t border-slate-200 pt-3 md:grid-cols-2">
+            <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+              <p className="text-xs font-semibold tracking-wide text-blue-700 uppercase">Mentee Answer</p>
+              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-800">{detail.submission.answer || "-"}</p>
+            </div>
+            <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+              <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Mentor Feedback</p>
+              {!detail.feedback ? (
+                <p className="text-sm text-slate-600">No feedback yet for this submission.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-800">
+                    Reviewed by {detail.mentor?.name ?? "Mentor"} ({detail.feedback.score}/5)
+                  </p>
+                  <p className="text-sm text-slate-800">
+                    Rubric: Correct Response {rubric?.correctResponse ?? 0}, Law {rubric?.law ?? 0},
+                    Reasoning {rubric?.reasoning ?? 0}, Logic {rubric?.logic ?? 0}, Grammar {rubric?.grammar ?? 0}
+                  </p>
+                  <div
+                    className="prose prose-sm max-w-none text-slate-800"
+                    dangerouslySetInnerHTML={{ __html: sanitizeFeedbackHtml(detail.feedback.comments) }}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </article>
+      ) : (
+        <div className="space-y-4">
+          {detail.questions.map((question, index) => {
+            const questionId = question._id.toString();
+            const answer = answerMap.get(questionId) ?? "";
+
+            return (
+              <article key={questionId} className="space-y-3 rounded-lg border border-slate-200 bg-white p-5">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Question {index + 1}</h2>
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{question.prompt}</p>
+                </div>
+
+                <div className="grid gap-4 border-t border-slate-200 pt-3 md:grid-cols-2">
+                  <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+                    <p className="text-xs font-semibold tracking-wide text-blue-700 uppercase">Mentee Answer</p>
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-800">{answer || "-"}</p>
+                  </div>
+
+                  <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+                    <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Mentor Feedback</p>
+                    {!detail.feedback ? (
+                      <p className="text-sm text-slate-600">No feedback yet for this submission.</p>
+                    ) : (
+                      <>
+                        <p className="text-sm text-slate-800">
+                          Reviewed by {detail.mentor?.name ?? "Mentor"} ({detail.feedback.score}/5)
+                        </p>
+                        <p className="text-sm text-slate-800">
+                          Rubric: Correct Response {rubric?.correctResponse ?? 0}, Law {rubric?.law ?? 0},
+                          Reasoning {rubric?.reasoning ?? 0}, Logic {rubric?.logic ?? 0}, Grammar {rubric?.grammar ?? 0}
+                        </p>
+                        <div
+                          className="prose prose-sm max-w-none text-slate-800"
+                          dangerouslySetInnerHTML={{ __html: sanitizeFeedbackHtml(detail.feedback.comments) }}
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <article className="space-y-2 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-900">Exam Context</h2>
@@ -36,36 +148,6 @@ export default async function MenteeSubmissionDetailPage({ params }: MenteeSubmi
         <p className="text-sm text-slate-600">
           {detail.exam?.subject ?? "Unknown subject"} - {detail.exam?.topic ?? "Unknown topic"}
         </p>
-      </article>
-
-      <article className="space-y-2 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">Prompt</h2>
-        <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-          {detail.question?.prompt ?? "Prompt unavailable."}
-        </p>
-      </article>
-
-      <article className="space-y-2 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">Your Answer</h2>
-        <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{detail.submission.answer}</p>
-      </article>
-
-      <article className="space-y-2 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">Mentor Feedback</h2>
-        {!detail.feedback ? (
-          <p className="text-sm text-slate-600">No feedback yet for this submission.</p>
-        ) : (
-          <>
-            <p className="text-sm text-slate-700">
-              Reviewed by {detail.mentor?.name ?? "Mentor"} ({detail.feedback.score}/100)
-            </p>
-            <p className="text-sm text-slate-700">
-              CLR: Conclusion {detail.feedback.clr.conclusion}, Law {detail.feedback.clr.law}, Reasoning{" "}
-              {detail.feedback.clr.reasoning}
-            </p>
-            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{detail.feedback.comments}</p>
-          </>
-        )}
       </article>
     </section>
   );

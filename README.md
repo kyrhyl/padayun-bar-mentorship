@@ -30,6 +30,12 @@ Login accounts (default password: `Padayun123!`):
 - `mentor@padayun.app`
 - `mentee@padayun.app`
 
+## User account creation
+
+- Public self-signup is disabled.
+- Only admins can create accounts from `/admin/users`.
+- Admins can create `mentor` and `mentee` accounts only.
+
 ## Scripts
 
 - `npm run dev` - start development server

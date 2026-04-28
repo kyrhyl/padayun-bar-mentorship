@@ -6,6 +6,18 @@ export interface ExamDocument {
   subject: string;
   topic: string;
   questionId: string;
+  questionMode?: "manual" | "random_pool";
+  questionIds?: string[];
+  poolConfig?: {
+    subject?: string;
+    topic?: string;
+    difficulties?: Array<"easy" | "medium" | "hard">;
+    tags?: string[];
+    questionCount: number;
+  } | null;
+  generatedQuestionIds?: string[];
+  poolGeneratedAt?: Date | null;
+  poolNeedsRegeneration?: boolean;
   durationMinutes: number;
   instructions: string;
   isPublished: boolean;
@@ -36,7 +48,43 @@ const examSchema = new Schema<ExamDocument>(
     },
     questionId: {
       type: String,
-      required: true,
+      required: false,
+      default: "",
+      index: true,
+    },
+    questionMode: {
+      type: String,
+      enum: ["manual", "random_pool"],
+      default: "manual",
+      index: true,
+    },
+    questionIds: {
+      type: [String],
+      default: [],
+    },
+    poolConfig: {
+      type: {
+        subject: { type: String, required: false },
+        topic: { type: String, required: false },
+        difficulties: { type: [String], default: [] },
+        tags: { type: [String], default: [] },
+        questionCount: { type: Number, min: 1, max: 100, required: true },
+      },
+      required: false,
+      default: null,
+      _id: false,
+    },
+    generatedQuestionIds: {
+      type: [String],
+      default: [],
+    },
+    poolGeneratedAt: {
+      type: Date,
+      default: null,
+    },
+    poolNeedsRegeneration: {
+      type: Boolean,
+      default: false,
       index: true,
     },
     durationMinutes: {

@@ -5,11 +5,19 @@ interface SuspiciousEvent {
   at: Date;
 }
 
+interface SubmissionAnswerItem {
+  questionId: string;
+  answer: string;
+  lastSavedAt: Date | null;
+}
+
 export interface SubmissionDocument {
   _id: string;
   userId: string;
   examId: string;
   answer: string;
+  resolvedQuestionIds: string[];
+  answers: SubmissionAnswerItem[];
   lastSavedAt: Date | null;
   isSubmitted: boolean;
   submittedAt: Date | null;
@@ -37,6 +45,26 @@ const suspiciousEventSchema = new Schema<SuspiciousEvent>(
   },
 );
 
+const submissionAnswerSchema = new Schema<SubmissionAnswerItem>(
+  {
+    questionId: {
+      type: String,
+      required: true,
+    },
+    answer: {
+      type: String,
+      default: "",
+    },
+    lastSavedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
 const submissionSchema = new Schema<SubmissionDocument>(
   {
     userId: {
@@ -51,8 +79,15 @@ const submissionSchema = new Schema<SubmissionDocument>(
     },
     answer: {
       type: String,
-      required: true,
       default: "",
+    },
+    resolvedQuestionIds: {
+      type: [String],
+      default: [],
+    },
+    answers: {
+      type: [submissionAnswerSchema],
+      default: [],
     },
     lastSavedAt: {
       type: Date,

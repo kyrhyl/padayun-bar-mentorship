@@ -29,8 +29,25 @@ export async function listMentorAssignments(): Promise<MentorAssignmentDocument[
 export async function upsertMentorAssignment(params: {
   mentorId: string;
   menteeId: string;
+  source?: "manual" | "scheduled_batch" | "availability_reassignment";
+  cycleId?: string;
 }): Promise<void> {
   await connectToDatabase();
+
+  await MentorAssignmentModel.updateMany(
+    {
+      menteeId: params.menteeId,
+      isActive: true,
+      mentorId: { $ne: params.mentorId },
+    },
+    {
+      $set: {
+        isActive: false,
+        endedAt: new Date(),
+      },
+    },
+  ).exec();
+
   await MentorAssignmentModel.updateOne(
     {
       mentorId: params.mentorId,
@@ -39,6 +56,10 @@ export async function upsertMentorAssignment(params: {
     {
       $set: {
         isActive: true,
+        endedAt: null,
+        startedAt: new Date(),
+        assignmentSource: params.source ?? "manual",
+        cycleId: params.cycleId ?? "2026-Q2",
       },
     },
     {
@@ -60,9 +81,25 @@ export async function deactivateMentorAssignment(params: {
     {
       $set: {
         isActive: false,
+        endedAt: new Date(),
       },
     },
   ).exec();
+}
+
+export async function listActiveAssignmentByMenteeIds(menteeIds: string[]): Promise<MentorAssignmentDocument[]> {
+  await connectToDatabase();
+
+  if (!menteeIds.length) {
+    return [];
+  }
+
+  return MentorAssignmentModel.find({
+    menteeId: { $in: menteeIds },
+    isActive: true,
+  })
+    .lean<MentorAssignmentDocument[]>()
+    .exec();
 }
 
 export async function isMentorAssignedToMentee(params: {

@@ -43,7 +43,19 @@ export async function createExam(data: {
   title: string;
   subject: string;
   topic: string;
-  questionId: string;
+  questionId?: string;
+  questionMode?: "manual" | "random_pool";
+  questionIds?: string[];
+  poolConfig?: {
+    subject?: string;
+    topic?: string;
+    difficulties?: Array<"easy" | "medium" | "hard">;
+    tags?: string[];
+    questionCount: number;
+  } | null;
+  generatedQuestionIds?: string[];
+  poolGeneratedAt?: Date | null;
+  poolNeedsRegeneration?: boolean;
   durationMinutes: number;
   instructions: string;
   isPublished: boolean;
@@ -99,7 +111,19 @@ export async function updateExamById(
     title: string;
     subject: string;
     topic: string;
-    questionId: string;
+    questionId?: string;
+    questionMode?: "manual" | "random_pool";
+    questionIds?: string[];
+    poolConfig?: {
+      subject?: string;
+      topic?: string;
+      difficulties?: Array<"easy" | "medium" | "hard">;
+      tags?: string[];
+      questionCount: number;
+    } | null;
+    generatedQuestionIds?: string[];
+    poolGeneratedAt?: Date | null;
+    poolNeedsRegeneration?: boolean;
     durationMinutes: number;
     instructions: string;
     isPublished: boolean;
@@ -123,4 +147,23 @@ export async function deleteExamById(examId: string): Promise<void> {
 export async function toggleExamPublish(examId: string, isPublished: boolean): Promise<void> {
   await connectToDatabase();
   await ExamModel.updateOne({ _id: examId }, { $set: { isPublished } }).exec();
+}
+
+export async function updateExamQuestionGeneration(params: {
+  examId: string;
+  generatedQuestionIds: string[];
+  poolGeneratedAt: Date;
+  poolNeedsRegeneration: boolean;
+}): Promise<void> {
+  await connectToDatabase();
+  await ExamModel.updateOne(
+    { _id: params.examId },
+    {
+      $set: {
+        generatedQuestionIds: params.generatedQuestionIds,
+        poolGeneratedAt: params.poolGeneratedAt,
+        poolNeedsRegeneration: params.poolNeedsRegeneration,
+      },
+    },
+  ).exec();
 }

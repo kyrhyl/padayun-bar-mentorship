@@ -9,7 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "seed:users": "tsx --env-file=.env.local scripts/seed-users.ts",
-    "seed:dev": "tsx --env-file=.env.local scripts/seed-dev-data.ts"
+    "seed:bulk-users": "tsx --env-file=.env.local scripts/seed-bulk-users.ts",
+    "seed:dev": "tsx --env-file=.env.local scripts/seed-dev-data.ts",
+    "seed:bar": "tsx --env-file=.env.local scripts/seed-bar-questions.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

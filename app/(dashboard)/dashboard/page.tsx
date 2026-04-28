@@ -1,45 +1,20 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { AdminOpsDashboard } from "@/components/dashboard/admin-ops-dashboard";
 import { requireAuth } from "@/lib/auth/authorization";
+import { getAdminDashboardService } from "@/services/dashboard.service";
 
 export default async function DashboardPage() {
   const session = await requireAuth();
 
   if (session.user.role === "admin") {
-    return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-slate-900">Admin Dashboard</h1>
-        <p className="text-sm text-slate-600">
-          Manage the question bank, exams, and mentor assignments.
-        </p>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin/questions"
-            className="inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            Open Question Bank
-          </Link>
-          <Link
-            href="/admin/exams"
-            className="inline-flex rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800"
-          >
-            Manage Exams
-          </Link>
-          <Link
-            href="/admin/assignments"
-            className="inline-flex rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800"
-          >
-            Manage Assignments
-          </Link>
-        </div>
-      </section>
-    );
+    const dashboard = await getAdminDashboardService();
+    return <AdminOpsDashboard data={dashboard} />;
   }
 
   if (session.user.role === "mentor") {
     redirect("/mentor");
   }
 
-  redirect("/mentee");
+  redirect("/mentee/dashboard");
 }

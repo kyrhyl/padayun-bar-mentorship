@@ -1,4 +1,5 @@
 import { QUESTION_DIFFICULTIES, type QuestionDifficulty } from "@/models/Question";
+import { BAR_SUBJECT_OPTIONS } from "@/lib/constants/bar-subjects";
 
 interface QuestionFormProps {
   mode: "create" | "edit";
@@ -13,17 +14,30 @@ interface QuestionFormProps {
 }
 
 export function QuestionForm({ mode, action, defaults }: QuestionFormProps) {
+  const subjectOptions = defaults?.subject
+    ? Array.from(new Set([...BAR_SUBJECT_OPTIONS, defaults.subject]))
+    : BAR_SUBJECT_OPTIONS;
+
   return (
-    <form action={action} className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+    <form action={action} className="ui-card space-y-4 p-4">
       <div className="grid gap-4 md:grid-cols-2">
         <label className="block text-sm text-slate-700">
           Subject
-          <input
+          <select
             name="subject"
             defaultValue={defaults?.subject ?? ""}
             required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-          />
+            className="ui-input mt-1 w-full"
+          >
+            <option value="" disabled>
+              Select a subject
+            </option>
+            {subjectOptions.map((subject) => (
+              <option key={subject} value={subject}>
+                {subject}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="block text-sm text-slate-700">
@@ -32,7 +46,7 @@ export function QuestionForm({ mode, action, defaults }: QuestionFormProps) {
             name="topic"
             defaultValue={defaults?.topic ?? ""}
             required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="ui-input mt-1 w-full"
           />
         </label>
       </div>
@@ -43,7 +57,7 @@ export function QuestionForm({ mode, action, defaults }: QuestionFormProps) {
           <select
             name="difficulty"
             defaultValue={defaults?.difficulty ?? "medium"}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="ui-input mt-1 w-full"
           >
             {QUESTION_DIFFICULTIES.map((difficulty) => (
               <option key={difficulty} value={difficulty}>
@@ -58,7 +72,7 @@ export function QuestionForm({ mode, action, defaults }: QuestionFormProps) {
           <input
             name="tags"
             defaultValue={defaults?.tags?.join(", ") ?? ""}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="ui-input mt-1 w-full"
             placeholder="evidence, remedial law"
           />
         </label>
@@ -72,13 +86,13 @@ export function QuestionForm({ mode, action, defaults }: QuestionFormProps) {
           required
           minLength={20}
           rows={8}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="ui-input mt-1 w-full"
         />
       </label>
 
       <button
         type="submit"
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        className="ui-btn-primary text-sm font-medium"
       >
         {mode === "create" ? "Create Question" : "Update Question"}
       </button>

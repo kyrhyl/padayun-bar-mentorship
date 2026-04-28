@@ -25,6 +25,7 @@ export async function PATCH(request: Request) {
       submissionId: parsed.data.submissionId,
       userId: session.user.id,
       answer: parsed.data.answer,
+      questionId: parsed.data.questionId,
       savedAt,
     });
 

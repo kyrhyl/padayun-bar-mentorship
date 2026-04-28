@@ -15,7 +15,7 @@ function getRouteRule(pathname: string) {
   return protectedRoutes.find((route) => pathname.startsWith(route.prefix));
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const routeRule = getRouteRule(pathname);
 

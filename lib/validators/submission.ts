@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const autosaveSubmissionSchema = z.object({
   submissionId: z.string().min(1),
+  questionId: z.string().min(1).optional(),
   answer: z.string().max(50000),
   clientSavedAt: z.string().datetime().optional(),
 });

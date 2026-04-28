@@ -8,19 +8,49 @@ import { examSchema } from "@/lib/validators/exam";
 import {
   createExamService,
   deleteExamService,
+  regenerateExamQuestionSetService,
   toggleExamPublishService,
   updateExamService,
 } from "@/services/exam.service";
 
 function parseExamForm(formData: FormData) {
-  return examSchema.safeParse({
+  const questionMode = String(formData.get("questionMode") ?? "manual");
+  const base = {
     title: formData.get("title"),
     subject: formData.get("subject"),
     topic: formData.get("topic"),
-    questionId: formData.get("questionId"),
     durationMinutes: formData.get("durationMinutes"),
     instructions: formData.get("instructions"),
     isPublished: formData.get("isPublished") === "on",
+  };
+
+  if (questionMode === "random_pool") {
+    const rawDifficulties = String(formData.get("poolDifficulties") ?? "")
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+    const difficulties = rawDifficulties.filter((item) => ["easy", "medium", "hard"].includes(item));
+
+    return examSchema.safeParse({
+      ...base,
+      questionMode: "random_pool",
+      poolConfig: {
+        subject: String(formData.get("poolSubject") ?? "").trim() || undefined,
+        topic: String(formData.get("poolTopic") ?? "").trim() || undefined,
+        difficulties,
+        tags: String(formData.get("poolTags") ?? "")
+          .split(",")
+          .map((item) => item.trim().toLowerCase())
+          .filter(Boolean),
+        questionCount: formData.get("poolQuestionCount"),
+      },
+    });
+  }
+
+  return examSchema.safeParse({
+    ...base,
+    questionMode: "manual",
+    questionIds: formData.getAll("questionIds"),
   });
 }
 
@@ -68,5 +98,20 @@ export async function togglePublishExamAction(examId: string, isPublished: boole
   await requireRole(["admin"]);
   await toggleExamPublishService(examId, isPublished);
   revalidatePath("/admin/exams");
-  revalidatePath("/mentee");
+  revalidatePath("/mentee/exams");
+}
+
+export async function regenerateExamQuestionsAction(examId: string, force: boolean) {
+  await requireRole(["admin"]);
+
+  try {
+    await regenerateExamQuestionSetService(examId, { force });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "regeneration_failed";
+    const encoded = encodeURIComponent(message);
+    redirect(`/admin/exams?error=${encoded}`);
+  }
+
+  revalidatePath("/admin/exams");
+  redirect("/admin/exams?success=regenerated");
 }

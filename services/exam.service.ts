@@ -1,6 +1,6 @@
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 import { examListFiltersSchema, examSchema, type ExamInput } from "@/lib/validators/exam";
-import { findQuestionById } from "@/repositories/question.repository";
+import { findQuestionById, listQuestionIdsByPool, listQuestionsByIds } from "@/repositories/question.repository";
 import {
   createExam,
   deleteExamById,
@@ -8,8 +8,53 @@ import {
   listExamsForAdmin,
   listPublishedExams,
   toggleExamPublish,
+  updateExamQuestionGeneration,
   updateExamById,
 } from "@/repositories/exam.repository";
+import { countInProgressSubmissionsByExam } from "@/repositories/submission.repository";
+
+function normalizeExamInput(input: ExamInput) {
+  if ("questionMode" in input && input.questionMode === "manual") {
+    return {
+      ...input,
+      questionId: input.questionIds[0],
+      poolConfig: null,
+      generatedQuestionIds: [],
+      poolGeneratedAt: null,
+      poolNeedsRegeneration: false,
+    };
+  }
+
+  if ("questionMode" in input && input.questionMode === "random_pool") {
+    return {
+      ...input,
+      questionId: "",
+      questionIds: [],
+      generatedQuestionIds: [],
+      poolGeneratedAt: null,
+      poolNeedsRegeneration: true,
+    };
+  }
+
+  return {
+    ...input,
+    questionMode: "manual" as const,
+    questionIds: [input.questionId],
+    poolConfig: null,
+    generatedQuestionIds: [],
+    poolGeneratedAt: null,
+    poolNeedsRegeneration: false,
+  };
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const next = [...items];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
 
 export async function listPublishedExamsService(input: Record<string, unknown>) {
   const parsed = examListFiltersSchema.safeParse(input);
@@ -36,7 +81,13 @@ export async function getExamWithQuestionService(examId: string) {
     return null;
   }
 
-  const question = await findQuestionById(exam.questionId);
+  const resolvedQuestionId =
+    exam.questionId || exam.generatedQuestionIds?.[0] || exam.questionIds?.[0];
+  if (!resolvedQuestionId) {
+    throw new Error("Exam has no resolved question.");
+  }
+
+  const question = await findQuestionById(resolvedQuestionId);
   if (!question) {
     throw new Error("Question linked to this exam was not found.");
   }
@@ -44,6 +95,58 @@ export async function getExamWithQuestionService(examId: string) {
   return {
     exam,
     question,
+  };
+}
+
+export function getResolvedQuestionIdsForExam(exam: {
+  questionMode?: "manual" | "random_pool";
+  questionId: string;
+  questionIds?: string[];
+  generatedQuestionIds?: string[];
+}) {
+  if (exam.questionMode === "random_pool") {
+    return exam.generatedQuestionIds ?? [];
+  }
+
+  if (exam.questionIds?.length) {
+    return exam.questionIds;
+  }
+
+  return exam.questionId ? [exam.questionId] : [];
+}
+
+export async function getExamWithQuestionsService(examId: string) {
+  const exam = await findExamById(examId);
+  if (!exam || !exam.isPublished) {
+    return null;
+  }
+
+  let resolvedIds = getResolvedQuestionIdsForExam(exam);
+  if (!resolvedIds.length && exam.questionMode === "random_pool" && exam.poolConfig) {
+    try {
+      resolvedIds = await regenerateExamQuestionSetService(examId, { force: true });
+    } catch {
+      return null;
+    }
+  }
+
+  if (!resolvedIds.length) {
+    return null;
+  }
+
+  const questions = await listQuestionsByIds(resolvedIds);
+  const questionMap = new Map(questions.map((question) => [question._id.toString(), question]));
+  const orderedQuestions = resolvedIds
+    .map((id) => questionMap.get(id))
+    .filter((question): question is NonNullable<typeof question> => Boolean(question));
+
+  if (!orderedQuestions.length) {
+    return null;
+  }
+
+  return {
+    exam,
+    questions: orderedQuestions,
   };
 }
 
@@ -72,8 +175,10 @@ export async function createExamService(input: ExamInput & { createdBy: string }
     throw new Error("Invalid exam payload.");
   }
 
+  const normalized = normalizeExamInput(parsed.data);
+
   return createExam({
-    ...parsed.data,
+    ...normalized,
     createdBy: input.createdBy,
   });
 }
@@ -84,7 +189,31 @@ export async function updateExamService(examId: string, input: ExamInput) {
     throw new Error("Invalid exam payload.");
   }
 
-  const updated = await updateExamById(examId, parsed.data);
+  const existingExam = await findExamById(examId);
+  if (!existingExam) {
+    throw new Error("Exam not found.");
+  }
+
+  const normalized = normalizeExamInput(parsed.data);
+
+  const payload =
+    normalized.questionMode === "random_pool"
+      ? (() => {
+    const previousPool = JSON.stringify(existingExam.poolConfig ?? null);
+    const nextPool = JSON.stringify(normalized.poolConfig ?? null);
+    const poolChanged = previousPool !== nextPool;
+
+        return {
+          ...normalized,
+          generatedQuestionIds: (existingExam.generatedQuestionIds ?? []) as string[],
+          poolGeneratedAt: (existingExam.poolGeneratedAt ?? null) as Date | null,
+          poolNeedsRegeneration:
+            poolChanged || existingExam.poolNeedsRegeneration || !(existingExam.generatedQuestionIds?.length),
+        };
+      })()
+      : normalized;
+
+  const updated = await updateExamById(examId, payload);
   if (!updated) {
     throw new Error("Exam not found.");
   }
@@ -97,5 +226,48 @@ export async function deleteExamService(examId: string) {
 }
 
 export async function toggleExamPublishService(examId: string, isPublished: boolean) {
+  if (isPublished) {
+    const exam = await findExamById(examId);
+    if (!exam) {
+      throw new Error("Exam not found.");
+    }
+
+    if (exam.questionMode === "random_pool" && !(exam.generatedQuestionIds?.length)) {
+      await regenerateExamQuestionSetService(examId, { force: true });
+    }
+  }
+
   await toggleExamPublish(examId, isPublished);
+}
+
+export async function regenerateExamQuestionSetService(examId: string, options?: { force?: boolean }) {
+  const exam = await findExamById(examId);
+  if (!exam) {
+    throw new Error("Exam not found.");
+  }
+
+  if (exam.questionMode !== "random_pool" || !exam.poolConfig) {
+    throw new Error("Exam is not configured for random pool.");
+  }
+
+  const inProgressCount = await countInProgressSubmissionsByExam(examId);
+  if (inProgressCount > 0 && !options?.force) {
+    throw new Error("Cannot regenerate while submissions are in progress.");
+  }
+
+  const poolQuestionIds = await listQuestionIdsByPool(exam.poolConfig);
+  if (poolQuestionIds.length < exam.poolConfig.questionCount) {
+    throw new Error("Not enough questions in pool to generate the configured set.");
+  }
+
+  const generatedQuestionIds = shuffle(poolQuestionIds).slice(0, exam.poolConfig.questionCount);
+
+  await updateExamQuestionGeneration({
+    examId,
+    generatedQuestionIds,
+    poolGeneratedAt: new Date(),
+    poolNeedsRegeneration: false,
+  });
+
+  return generatedQuestionIds;
 }

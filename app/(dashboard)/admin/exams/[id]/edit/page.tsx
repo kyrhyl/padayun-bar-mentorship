@@ -54,10 +54,16 @@ export default async function EditExamPage({ params, searchParams }: EditExamPag
           title: exam.title,
           subject: exam.subject,
           topic: exam.topic,
-          questionId: exam.questionId,
           durationMinutes: exam.durationMinutes,
           instructions: exam.instructions,
           isPublished: exam.isPublished,
+          questionMode: exam.questionMode ?? "manual",
+          questionIds: exam.questionIds?.length
+            ? exam.questionIds
+            : exam.questionId
+              ? [exam.questionId]
+              : [],
+          poolConfig: exam.poolConfig ?? null,
         }}
       />
     </section>

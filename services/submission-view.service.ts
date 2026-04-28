@@ -14,14 +14,27 @@ export async function getMenteeSubmissionDetailService(params: {
   }
 
   const [exam] = await listExamsByIds([submission.examId]);
-  const [question] = exam ? await listQuestionsByIds([exam.questionId]) : [null];
+  const resolvedQuestionIds = submission.resolvedQuestionIds?.length
+    ? submission.resolvedQuestionIds
+    : exam?.questionIds?.length
+      ? exam.questionIds
+      : exam?.generatedQuestionIds?.length
+        ? exam.generatedQuestionIds
+        : exam?.questionId
+          ? [exam.questionId]
+          : [];
+  const questions = resolvedQuestionIds.length ? await listQuestionsByIds(resolvedQuestionIds) : [];
+  const questionMap = new Map(questions.map((question) => [question._id.toString(), question]));
+  const orderedQuestions = resolvedQuestionIds
+    .map((id) => questionMap.get(id))
+    .filter((question): question is NonNullable<typeof question> => Boolean(question));
   const feedback = await findFeedbackBySubmissionId(submission._id.toString());
   const [mentor] = feedback ? await listUsersByIds([feedback.mentorId]) : [null];
 
   return {
     submission,
     exam,
-    question,
+    questions: orderedQuestions,
     feedback,
     mentor,
   };
