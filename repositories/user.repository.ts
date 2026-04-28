@@ -54,6 +54,47 @@ export async function listUsersByRoles(roles: UserRole[]): Promise<UserDocument[
   return UserModel.find({ role: { $in: roles } }).sort({ createdAt: -1 }).lean<UserDocument[]>().exec();
 }
 
+export async function listManagedUsersForAdmin(params?: {
+  query?: string;
+  role?: "mentor" | "mentee";
+  availability?: "available" | "unavailable";
+}): Promise<UserDocument[]> {
+  await connectToDatabase();
+
+  const filter: Record<string, unknown> = {
+    role: { $in: ["mentor", "mentee"] },
+  };
+
+  if (params?.role) {
+    filter.role = params.role;
+  }
+
+  if (params?.query) {
+    const regex = new RegExp(params.query, "i");
+    filter.$or = [{ name: { $regex: regex } }, { email: { $regex: regex } }];
+  }
+
+  if (params?.availability) {
+    if (params.availability === "unavailable") {
+      filter.role = "mentor";
+      filter.assignmentAvailability = "unavailable";
+    } else {
+      filter.$and = [
+        { role: "mentor" },
+        {
+          $or: [
+            { assignmentAvailability: "available" },
+            { assignmentAvailability: { $exists: false } },
+            { assignmentAvailability: null },
+          ],
+        },
+      ];
+    }
+  }
+
+  return UserModel.find(filter).sort({ createdAt: -1 }).lean<UserDocument[]>().exec();
+}
+
 export async function listRecentUsersByRoles(roles: UserRole[], limit: number): Promise<UserDocument[]> {
   await connectToDatabase();
   return UserModel.find({ role: { $in: roles } })

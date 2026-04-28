@@ -119,6 +119,9 @@ const submissionSchema = new Schema<SubmissionDocument>(
 
 submissionSchema.index({ userId: 1, examId: 1 }, { unique: true });
 submissionSchema.index({ examId: 1, userId: 1 });
+submissionSchema.index({ userId: 1, isSubmitted: 1, submittedAt: -1 });
+submissionSchema.index({ userId: 1, updatedAt: -1 });
+submissionSchema.index({ examId: 1, isSubmitted: 1, submittedAt: -1 });
 
 export const SubmissionModel =
   (models.Submission as Model<SubmissionDocument> | undefined) ??

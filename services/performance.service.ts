@@ -2,7 +2,11 @@ import { buildPaginationMeta } from "@/lib/utils/pagination";
 import { performanceFilterSchema } from "@/lib/validators/performance";
 import { isMentorAssignedToMentee, listAssignedMenteeIds } from "@/repositories/mentor-assignment.repository";
 import { listFeedbackBySubmissionIds } from "@/repositories/feedback.repository";
-import { listSubmittedSubmissionsByUserIdsAll } from "@/repositories/submission.repository";
+import {
+  aggregateSubmissionPerformanceByUserIds,
+  aggregateMenteePerformanceDetail,
+  listSubmittedSubmissionsByUserIdsAll,
+} from "@/repositories/submission.repository";
 import { listUsersByIds, listUsersByRole } from "@/repositories/user.repository";
 import { listExamsByIds } from "@/repositories/exam.repository";
 
@@ -29,6 +33,22 @@ interface MenteePerformanceDetail {
   recentScores: Array<{ submissionId: string; score: number; updatedAt: Date }>;
 }
 
+const PERF_LOG_ENABLED = process.env.PERF_LOGS === "1";
+
+function logPerf(label: string, startedAt: number, meta?: Record<string, unknown>) {
+  if (!PERF_LOG_ENABLED) {
+    return;
+  }
+
+  const durationMs = Date.now() - startedAt;
+  if (meta) {
+    console.info(`[perf] ${label}: ${durationMs}ms`, meta);
+    return;
+  }
+
+  console.info(`[perf] ${label}: ${durationMs}ms`);
+}
+
 function getRangeStart(range: "7d" | "30d" | "90d" | "all"): Date | null {
   if (range === "all") {
     return null;
@@ -51,13 +71,21 @@ export async function getMentorPerformanceListService(
   meta: ReturnType<typeof buildPaginationMeta>;
   filters: { range: "7d" | "30d" | "90d" | "all"; subject?: string; page: number; limit: number };
 }> {
+  const startedAt = Date.now();
   const parsed = performanceFilterSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error("Invalid performance filters.");
   }
 
   const menteeIds = await listAssignedMenteeIds(mentorId);
-  return getPerformanceListByMenteeIds(menteeIds, parsed.data);
+  const result = await getPerformanceListByMenteeIds(menteeIds, parsed.data);
+  logPerf("mentor-performance-list", startedAt, {
+    menteeCount: menteeIds.length,
+    items: result.items.length,
+    totalItems: result.meta.totalItems,
+    range: parsed.data.range,
+  });
+  return result;
 }
 
 export async function getAdminPerformanceListService(input: Record<string, unknown>): Promise<{
@@ -82,39 +110,14 @@ async function getPerformanceListByMenteeIds(
   filters: { range: "7d" | "30d" | "90d" | "all"; subject?: string; page: number; limit: number },
 ) {
   const rangeStart = getRangeStart(filters.range);
-  const [mentees, submissions] = await Promise.all([
+  const [mentees, aggregates] = await Promise.all([
     listUsersByIds(menteeIds),
-    listSubmittedSubmissionsByUserIdsAll(menteeIds),
+    aggregateSubmissionPerformanceByUserIds({
+      userIds: menteeIds,
+      rangeStart,
+      subject: filters.subject,
+    }),
   ]);
-
-  const scopedSubmissions = submissions.filter((submission) => {
-    if (!submission.submittedAt) {
-      return false;
-    }
-
-    if (rangeStart && submission.submittedAt < rangeStart) {
-      return false;
-    }
-
-    return true;
-  });
-
-  const [feedback, exams] = await Promise.all([
-    listFeedbackBySubmissionIds(scopedSubmissions.map((submission) => submission._id.toString())),
-    listExamsByIds(scopedSubmissions.map((submission) => submission.examId)),
-  ]);
-
-  const feedbackBySubmissionId = new Map(feedback.map((item) => [item.submissionId, item]));
-  const examById = new Map(exams.map((exam) => [exam._id.toString(), exam]));
-
-  const filteredSubmissions = scopedSubmissions.filter((submission) => {
-    if (!filters.subject) {
-      return true;
-    }
-
-    const exam = examById.get(submission.examId);
-    return Boolean(exam?.subject.toLowerCase().includes(filters.subject.toLowerCase()));
-  });
 
   const byMentee = new Map<string, MenteePerformanceListItem>();
   const menteeMap = toMenteeMap(mentees);
@@ -133,35 +136,17 @@ async function getPerformanceListByMenteeIds(
     });
   });
 
-  const scoreAccumulator = new Map<string, number[]>();
-
-  filteredSubmissions.forEach((submission) => {
-    const row = byMentee.get(submission.userId);
+  aggregates.forEach((aggregate) => {
+    const row = byMentee.get(aggregate.userId);
     if (!row) {
       return;
     }
 
-    row.totalSubmissions += 1;
-    if (!row.lastSubmittedAt || (submission.submittedAt && submission.submittedAt > row.lastSubmittedAt)) {
-      row.lastSubmittedAt = submission.submittedAt;
-    }
-
-    const feedbackItem = feedbackBySubmissionId.get(submission._id.toString());
-    if (feedbackItem) {
-      row.reviewedSubmissions += 1;
-      const scores = scoreAccumulator.get(submission.userId) ?? [];
-      scores.push(feedbackItem.score);
-      scoreAccumulator.set(submission.userId, scores);
-    } else {
-      row.pendingReviews += 1;
-    }
-  });
-
-  byMentee.forEach((row) => {
-    const scores = scoreAccumulator.get(row.menteeId) ?? [];
-    row.averageScore = scores.length
-      ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 100) / 100
-      : null;
+    row.totalSubmissions = aggregate.totalSubmissions;
+    row.reviewedSubmissions = aggregate.reviewedSubmissions;
+    row.pendingReviews = aggregate.pendingReviews;
+    row.averageScore = aggregate.averageScore;
+    row.lastSubmittedAt = aggregate.lastSubmittedAt;
   });
 
   const allItems = [...byMentee.values()].sort((a, b) => {
@@ -208,6 +193,7 @@ async function getMenteePerformanceDetail(
   menteeId: string,
   input: Record<string, unknown>,
 ): Promise<MenteePerformanceDetail> {
+  const startedAt = Date.now();
   const parsed = performanceFilterSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error("Invalid performance filters.");
@@ -215,90 +201,33 @@ async function getMenteePerformanceDetail(
 
   const rangeStart = getRangeStart(parsed.data.range);
   const [mentee] = await listUsersByIds([menteeId]);
-  const submissions = await listSubmittedSubmissionsByUserIdsAll([menteeId]);
-
-  const scopedSubmissions = submissions.filter((submission) => {
-    if (!submission.submittedAt) {
-      return false;
-    }
-
-    if (rangeStart && submission.submittedAt < rangeStart) {
-      return false;
-    }
-
-    return true;
+  const aggregate = await aggregateMenteePerformanceDetail({
+    userId: menteeId,
+    rangeStart,
+    subject: parsed.data.subject,
+    weakLimit: 5,
+    recentLimit: 10,
   });
 
-  const [feedback, exams] = await Promise.all([
-    listFeedbackBySubmissionIds(scopedSubmissions.map((submission) => submission._id.toString())),
-    listExamsByIds(scopedSubmissions.map((submission) => submission.examId)),
-  ]);
-
-  const feedbackBySubmissionId = new Map(feedback.map((item) => [item.submissionId, item]));
-  const examById = new Map(exams.map((exam) => [exam._id.toString(), exam]));
-
-  const filteredSubmissions = scopedSubmissions.filter((submission) => {
-    if (!parsed.data.subject) {
-      return true;
-    }
-
-    const exam = examById.get(submission.examId);
-    return Boolean(exam?.subject.toLowerCase().includes(parsed.data.subject.toLowerCase()));
-  });
-
-  let reviewedSubmissions = 0;
-  let pendingReviews = 0;
-  const scores: number[] = [];
-  const scoresBySubject = new Map<string, number[]>();
-  const recentScores: Array<{ submissionId: string; score: number; updatedAt: Date }> = [];
-
-  filteredSubmissions.forEach((submission) => {
-    const feedbackItem = feedbackBySubmissionId.get(submission._id.toString());
-    if (!feedbackItem) {
-      pendingReviews += 1;
-      return;
-    }
-
-    reviewedSubmissions += 1;
-    scores.push(feedbackItem.score);
-    recentScores.push({
-      submissionId: submission._id.toString(),
-      score: feedbackItem.score,
-      updatedAt: feedbackItem.updatedAt,
-    });
-
-    const subject = examById.get(submission.examId)?.subject;
-    if (!subject) {
-      return;
-    }
-
-    const list = scoresBySubject.get(subject) ?? [];
-    list.push(feedbackItem.score);
-    scoresBySubject.set(subject, list);
-  });
-
-  const weakSubjects = [...scoresBySubject.entries()]
-    .map(([subject, subjectScores]) => ({
-      subject,
-      averageScore:
-        Math.round((subjectScores.reduce((sum, score) => sum + score, 0) / subjectScores.length) * 100) / 100,
-    }))
-    .sort((a, b) => a.averageScore - b.averageScore)
-    .slice(0, 5);
-
-  recentScores.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-
-  return {
+  const result = {
     menteeId,
     menteeName: mentee?.name ?? "Unknown Mentee",
     menteeEmail: mentee?.email ?? "Unknown Email",
-    totalSubmissions: filteredSubmissions.length,
-    reviewedSubmissions,
-    pendingReviews,
-    averageScore: scores.length
-      ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 100) / 100
-      : null,
-    weakSubjects,
-    recentScores: recentScores.slice(0, 10),
+    totalSubmissions: aggregate.totalSubmissions,
+    reviewedSubmissions: aggregate.reviewedSubmissions,
+    pendingReviews: aggregate.pendingReviews,
+    averageScore: aggregate.averageScore,
+    weakSubjects: aggregate.weakSubjects,
+    recentScores: aggregate.recentScores,
   };
+
+  logPerf("mentee-performance-detail", startedAt, {
+    menteeId,
+    submissions: aggregate.totalSubmissions,
+    reviewedSubmissions: aggregate.reviewedSubmissions,
+    pendingReviews: aggregate.pendingReviews,
+    range: parsed.data.range,
+  });
+
+  return result;
 }

@@ -42,9 +42,10 @@ export async function setMentorAvailabilityAction(formData: FormData) {
   await requireRole(["admin"]);
 
   const mentorId = formData.get("mentorId");
-  const availability = formData.get("availability");
+  const isUnavailable = formData.get("isUnavailable") === "on";
+  const availability = isUnavailable ? "unavailable" : "available";
 
-  if (typeof mentorId !== "string" || (availability !== "available" && availability !== "unavailable")) {
+  if (typeof mentorId !== "string") {
     redirect("/admin/users?error=invalid_form");
   }
 

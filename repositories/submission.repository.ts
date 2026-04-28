@@ -10,6 +10,20 @@ interface PendingSubmissionListParams {
   subject?: string;
 }
 
+interface PerformanceAggregateParams {
+  userIds: string[];
+  rangeStart?: Date | null;
+  subject?: string;
+}
+
+interface MenteePerformanceDetailAggregateParams {
+  userId: string;
+  rangeStart?: Date | null;
+  subject?: string;
+  weakLimit: number;
+  recentLimit: number;
+}
+
 export async function findSubmissionById(
   submissionId: string,
 ): Promise<SubmissionDocument | null> {
@@ -51,31 +65,80 @@ export async function updateSubmissionAnswer(params: {
 }): Promise<SubmissionDocument | null> {
   await connectToDatabase();
 
-  const submission = await SubmissionModel.findOne({
+  const filter = {
     _id: params.submissionId,
     userId: params.userId,
     isSubmitted: false,
-  }).exec();
+  };
 
-  if (!submission) {
-    return null;
+  if (!params.questionId) {
+    return SubmissionModel.findOneAndUpdate(
+      filter,
+      {
+        $set: {
+          answer: params.answer,
+          lastSavedAt: params.savedAt,
+        },
+      },
+      {
+        returnDocument: "after",
+        upsert: false,
+        runValidators: true,
+      },
+    )
+      .lean<SubmissionDocument>()
+      .exec();
   }
 
-  submission.answer = params.answer;
-  submission.lastSavedAt = params.savedAt;
+  const updatedExisting = await SubmissionModel.findOneAndUpdate(
+    {
+      ...filter,
+      "answers.questionId": params.questionId,
+    },
+    {
+      $set: {
+        answer: params.answer,
+        lastSavedAt: params.savedAt,
+        "answers.$.answer": params.answer,
+        "answers.$.lastSavedAt": params.savedAt,
+      },
+    },
+    {
+      returnDocument: "after",
+      upsert: false,
+      runValidators: true,
+    },
+  )
+    .lean<SubmissionDocument>()
+    .exec();
 
-  if (params.questionId) {
-    const answerIndex = submission.answers.findIndex((item) => item.questionId === params.questionId);
-    if (answerIndex >= 0) {
-      submission.answers[answerIndex].answer = params.answer;
-      submission.answers[answerIndex].lastSavedAt = params.savedAt;
-    } else {
-      submission.answers.push({ questionId: params.questionId, answer: params.answer, lastSavedAt: params.savedAt });
-    }
+  if (updatedExisting) {
+    return updatedExisting;
   }
 
-  await submission.save();
-  return submission.toObject() as SubmissionDocument;
+  return SubmissionModel.findOneAndUpdate(
+    filter,
+    {
+      $set: {
+        answer: params.answer,
+        lastSavedAt: params.savedAt,
+      },
+      $push: {
+        answers: {
+          questionId: params.questionId,
+          answer: params.answer,
+          lastSavedAt: params.savedAt,
+        },
+      },
+    },
+    {
+      returnDocument: "after",
+      upsert: false,
+      runValidators: true,
+    },
+  )
+    .lean<SubmissionDocument>()
+    .exec();
 }
 
 export async function submitSubmission(params: {
@@ -312,5 +375,293 @@ export async function listPendingSubmittedSubmissionsByUserIds(params: PendingSu
   return {
     items: items as SubmissionDocument[],
     totalItems: totalResult[0]?.totalItems ?? 0,
+  };
+}
+
+export async function aggregateSubmissionPerformanceByUserIds(params: PerformanceAggregateParams): Promise<
+  Array<{
+    userId: string;
+    totalSubmissions: number;
+    reviewedSubmissions: number;
+    pendingReviews: number;
+    averageScore: number | null;
+    lastSubmittedAt: Date | null;
+  }>
+> {
+  await connectToDatabase();
+
+  if (!params.userIds.length) {
+    return [];
+  }
+
+  const submissionMatch: Record<string, unknown> = {
+    userId: { $in: params.userIds },
+    isSubmitted: true,
+    submittedAt: { $ne: null },
+  };
+
+  if (params.rangeStart) {
+    submissionMatch.submittedAt = {
+      $gte: params.rangeStart,
+    };
+  }
+
+  const subjectRegex = params.subject ? new RegExp(params.subject, "i") : null;
+
+  const pipeline: PipelineStage[] = [
+    { $match: submissionMatch },
+    {
+      $addFields: {
+        submissionIdStr: { $toString: "$_id" },
+      },
+    },
+  ];
+
+  if (subjectRegex) {
+    pipeline.push(
+      {
+        $lookup: {
+          from: "exams",
+          let: { examId: "$examId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: [{ $toString: "$_id" }, "$$examId"] },
+              },
+            },
+          ],
+          as: "exam",
+        },
+      },
+      { $unwind: "$exam" },
+      { $match: { "exam.subject": { $regex: subjectRegex } } },
+    );
+  }
+
+  pipeline.push(
+    {
+      $lookup: {
+        from: "feedbacks",
+        let: { submissionId: "$submissionIdStr" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ["$submissionId", "$$submissionId"] },
+            },
+          },
+          { $project: { score: 1 } },
+        ],
+        as: "feedback",
+      },
+    },
+    {
+      $addFields: {
+        feedbackScore: { $ifNull: [{ $arrayElemAt: ["$feedback.score", 0] }, null] },
+      },
+    },
+    {
+      $group: {
+        _id: "$userId",
+        totalSubmissions: { $sum: 1 },
+        reviewedSubmissions: {
+          $sum: {
+            $cond: [{ $ne: ["$feedbackScore", null] }, 1, 0],
+          },
+        },
+        pendingReviews: {
+          $sum: {
+            $cond: [{ $eq: ["$feedbackScore", null] }, 1, 0],
+          },
+        },
+        averageScore: { $avg: "$feedbackScore" },
+        lastSubmittedAt: { $max: "$submittedAt" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        userId: "$_id",
+        totalSubmissions: 1,
+        reviewedSubmissions: 1,
+        pendingReviews: 1,
+        averageScore: {
+          $cond: [
+            { $eq: ["$averageScore", null] },
+            null,
+            { $round: ["$averageScore", 2] },
+          ],
+        },
+        lastSubmittedAt: 1,
+      },
+    },
+  );
+
+  return SubmissionModel.aggregate(pipeline).exec();
+}
+
+export async function aggregateMenteePerformanceDetail(params: MenteePerformanceDetailAggregateParams): Promise<{
+  totalSubmissions: number;
+  reviewedSubmissions: number;
+  pendingReviews: number;
+  averageScore: number | null;
+  weakSubjects: Array<{ subject: string; averageScore: number }>;
+  recentScores: Array<{ submissionId: string; score: number; updatedAt: Date }>;
+}> {
+  await connectToDatabase();
+
+  const submissionMatch: Record<string, unknown> = {
+    userId: params.userId,
+    isSubmitted: true,
+    submittedAt: { $ne: null },
+  };
+
+  if (params.rangeStart) {
+    submissionMatch.submittedAt = { $gte: params.rangeStart };
+  }
+
+  const subjectRegex = params.subject ? new RegExp(params.subject, "i") : null;
+
+  const pipeline: PipelineStage[] = [
+    { $match: submissionMatch },
+    {
+      $addFields: {
+        submissionIdStr: { $toString: "$_id" },
+      },
+    },
+    {
+      $lookup: {
+        from: "exams",
+        let: { examId: "$examId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: [{ $toString: "$_id" }, "$$examId"] },
+            },
+          },
+          { $project: { subject: 1 } },
+        ],
+        as: "exam",
+      },
+    },
+    { $unwind: "$exam" },
+  ];
+
+  if (subjectRegex) {
+    pipeline.push({ $match: { "exam.subject": { $regex: subjectRegex } } });
+  }
+
+  pipeline.push(
+    {
+      $lookup: {
+        from: "feedbacks",
+        let: { submissionId: "$submissionIdStr" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ["$submissionId", "$$submissionId"] },
+            },
+          },
+          { $project: { score: 1, updatedAt: 1 } },
+        ],
+        as: "feedback",
+      },
+    },
+    {
+      $addFields: {
+        feedbackScore: { $ifNull: [{ $arrayElemAt: ["$feedback.score", 0] }, null] },
+        feedbackUpdatedAt: { $ifNull: [{ $arrayElemAt: ["$feedback.updatedAt", 0] }, null] },
+      },
+    },
+    {
+      $facet: {
+        summary: [
+          {
+            $group: {
+              _id: null,
+              totalSubmissions: { $sum: 1 },
+              reviewedSubmissions: {
+                $sum: {
+                  $cond: [{ $ne: ["$feedbackScore", null] }, 1, 0],
+                },
+              },
+              pendingReviews: {
+                $sum: {
+                  $cond: [{ $eq: ["$feedbackScore", null] }, 1, 0],
+                },
+              },
+              averageScore: { $avg: "$feedbackScore" },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              totalSubmissions: 1,
+              reviewedSubmissions: 1,
+              pendingReviews: 1,
+              averageScore: {
+                $cond: [
+                  { $eq: ["$averageScore", null] },
+                  null,
+                  { $round: ["$averageScore", 2] },
+                ],
+              },
+            },
+          },
+        ],
+        weakSubjects: [
+          { $match: { feedbackScore: { $ne: null } } },
+          {
+            $group: {
+              _id: "$exam.subject",
+              averageScore: { $avg: "$feedbackScore" },
+            },
+          },
+          { $sort: { averageScore: 1 } },
+          { $limit: params.weakLimit },
+          {
+            $project: {
+              _id: 0,
+              subject: "$_id",
+              averageScore: { $round: ["$averageScore", 2] },
+            },
+          },
+        ],
+        recentScores: [
+          { $match: { feedbackScore: { $ne: null }, feedbackUpdatedAt: { $ne: null } } },
+          { $sort: { feedbackUpdatedAt: -1 } },
+          { $limit: params.recentLimit },
+          {
+            $project: {
+              _id: 0,
+              submissionId: "$submissionIdStr",
+              score: "$feedbackScore",
+              updatedAt: "$feedbackUpdatedAt",
+            },
+          },
+        ],
+      },
+    },
+  );
+
+  const [result] = await SubmissionModel.aggregate<{
+    summary: Array<{
+      totalSubmissions: number;
+      reviewedSubmissions: number;
+      pendingReviews: number;
+      averageScore: number | null;
+    }>;
+    weakSubjects: Array<{ subject: string; averageScore: number }>;
+    recentScores: Array<{ submissionId: string; score: number; updatedAt: Date }>;
+  }>(pipeline).exec();
+
+  const summary = result?.summary?.[0];
+
+  return {
+    totalSubmissions: summary?.totalSubmissions ?? 0,
+    reviewedSubmissions: summary?.reviewedSubmissions ?? 0,
+    pendingReviews: summary?.pendingReviews ?? 0,
+    averageScore: summary?.averageScore ?? null,
+    weakSubjects: result?.weakSubjects ?? [],
+    recentScores: result?.recentScores ?? [],
   };
 }

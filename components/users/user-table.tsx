@@ -51,15 +51,19 @@ export function UserTable({ users, onSetMentorAvailability }: UserTableProps) {
                 <td className="px-4 py-3 text-slate-700">{new Date(user.createdAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-slate-700">
                   {user.role === "mentor" ? (
-                    <form action={onSetMentorAvailability}>
+                    <form action={onSetMentorAvailability} className="flex items-center gap-2">
                       <input type="hidden" name="mentorId" value={user._id.toString()} />
-                      <input
-                        type="hidden"
-                        name="availability"
-                        value={user.assignmentAvailability === "unavailable" ? "available" : "unavailable"}
-                      />
-                      <button type="submit" className="underline">
-                        {user.assignmentAvailability === "unavailable" ? "Mark Available" : "Mark Unavailable"}
+                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          name="isUnavailable"
+                          defaultChecked={user.assignmentAvailability === "unavailable"}
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Unavailable
+                      </label>
+                      <button type="submit" className="rounded border border-slate-300 px-2 py-1 text-xs">
+                        Save
                       </button>
                     </form>
                   ) : (

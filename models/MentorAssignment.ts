@@ -23,7 +23,6 @@ const mentorAssignmentSchema = new Schema<MentorAssignmentDocument>(
     menteeId: {
       type: String,
       required: true,
-      index: true,
     },
     isActive: {
       type: Boolean,
@@ -55,6 +54,7 @@ const mentorAssignmentSchema = new Schema<MentorAssignmentDocument>(
 );
 
 mentorAssignmentSchema.index({ mentorId: 1, menteeId: 1 }, { unique: true });
+mentorAssignmentSchema.index({ mentorId: 1, isActive: 1 });
 mentorAssignmentSchema.index(
   { menteeId: 1 },
   {

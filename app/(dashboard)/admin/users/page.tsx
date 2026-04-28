@@ -8,7 +8,13 @@ import { requireRole } from "@/lib/auth/authorization";
 import { listManagedUsersForAdminService } from "@/services/user-admin.service";
 
 interface AdminUsersPageProps {
-  searchParams: Promise<{ success?: string; error?: string }>;
+  searchParams: Promise<{
+    success?: string;
+    error?: string;
+    query?: string;
+    role?: "mentor" | "mentee";
+    availability?: "available" | "unavailable";
+  }>;
 }
 
 function getStatusMessage(status: { success?: string; error?: string }) {
@@ -38,7 +44,11 @@ function getStatusMessage(status: { success?: string; error?: string }) {
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
   await requireRole(["admin"]);
   const params = await searchParams;
-  const users = await listManagedUsersForAdminService();
+  const users = await listManagedUsersForAdminService({
+    query: params.query,
+    role: params.role,
+    availability: params.availability,
+  });
   const status = getStatusMessage(params);
 
   return (
@@ -59,6 +69,32 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           {status.text}
         </p>
       ) : null}
+
+      <form className="ui-card flex flex-wrap items-center gap-2 p-3">
+        <input
+          name="query"
+          defaultValue={params.query ?? ""}
+          placeholder="Search name or email"
+          className="ui-input h-9 min-w-[220px] flex-1 text-sm"
+        />
+        <select name="role" defaultValue={params.role ?? ""} className="ui-input h-9 w-[140px] text-sm">
+          <option value="">All roles</option>
+          <option value="mentor">Mentor</option>
+          <option value="mentee">Mentee</option>
+        </select>
+        <select
+          name="availability"
+          defaultValue={params.availability ?? ""}
+          className="ui-input h-9 w-[170px] text-sm"
+        >
+          <option value="">All availability</option>
+          <option value="available">Mentor available</option>
+          <option value="unavailable">Mentor unavailable</option>
+        </select>
+        <button type="submit" className="ui-btn-primary h-9 px-3 text-sm font-medium whitespace-nowrap">
+          Apply
+        </button>
+      </form>
 
       <UserCreateForm action={createUserAction} />
       <UserTable users={users} onSetMentorAvailability={setMentorAvailabilityAction} />

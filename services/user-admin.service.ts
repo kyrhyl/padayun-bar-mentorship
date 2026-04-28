@@ -8,7 +8,7 @@ import {
 import {
   createUser,
   findUserByEmail,
-  listUsersByRoles,
+  listManagedUsersForAdmin,
   setMentorAvailabilityByCycle,
 } from "@/repositories/user.repository";
 
@@ -37,8 +37,12 @@ export async function createUserByAdminService(input: AdminCreateUserInput) {
   });
 }
 
-export async function listManagedUsersForAdminService() {
-  return listUsersByRoles(["mentor", "mentee"]);
+export async function listManagedUsersForAdminService(input?: {
+  query?: string;
+  role?: "mentor" | "mentee";
+  availability?: "available" | "unavailable";
+}) {
+  return listManagedUsersForAdmin(input);
 }
 
 export async function setMentorAvailabilityService(input: {
