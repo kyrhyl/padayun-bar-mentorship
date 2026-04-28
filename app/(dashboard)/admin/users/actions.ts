@@ -8,6 +8,7 @@ import { adminCreateUserSchema } from "@/lib/validators/user";
 import {
   createUserByAdminService,
   setMentorAvailabilityService,
+  updateManagedUserByAdminService,
 } from "@/services/user-admin.service";
 
 export async function createUserAction(formData: FormData) {
@@ -61,4 +62,29 @@ export async function setMentorAvailabilityAction(formData: FormData) {
   revalidatePath("/admin/users");
   revalidatePath("/admin/assignments");
   redirect("/admin/users?success=updated");
+}
+
+export async function updateManagedUserAction(formData: FormData) {
+  await requireRole(["admin"]);
+
+  const userId = formData.get("userId");
+  const name = formData.get("name");
+  const newPassword = formData.get("newPassword");
+
+  if (typeof userId !== "string" || typeof name !== "string" || typeof newPassword !== "string") {
+    redirect("/admin/users?error=invalid_form");
+  }
+
+  try {
+    await updateManagedUserByAdminService({
+      userId,
+      name,
+      newPassword,
+    });
+  } catch {
+    redirect("/admin/users?error=update_failed");
+  }
+
+  revalidatePath("/admin/users");
+  redirect("/admin/users?success=user_updated");
 }

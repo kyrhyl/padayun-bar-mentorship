@@ -4,6 +4,15 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { authenticateWithCredentials } from "@/services/auth.service";
 
 export const authOptions: NextAuthOptions = {
+  logger: {
+    error(code, metadata) {
+      if (code === "JWT_SESSION_ERROR") {
+        return;
+      }
+
+      console.error("[next-auth][error]", code, metadata ?? {});
+    },
+  },
   session: {
     strategy: "jwt",
   },

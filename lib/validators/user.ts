@@ -11,6 +11,14 @@ export const adminCreateUserSchema = z.object({
 
 export type AdminCreateUserInput = z.infer<typeof adminCreateUserSchema>;
 
+export const adminUpdateManagedUserSchema = z.object({
+  userId: z.string().trim().min(1),
+  name: z.string().trim().min(2).max(120),
+  newPassword: z.string().min(8).max(128),
+});
+
+export type AdminUpdateManagedUserInput = z.infer<typeof adminUpdateManagedUserSchema>;
+
 export const mentorAvailabilitySchema = z.object({
   mentorId: z.string().min(1),
   availability: z.enum(["available", "unavailable"]),

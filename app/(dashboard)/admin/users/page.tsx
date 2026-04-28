@@ -1,6 +1,7 @@
 import {
   createUserAction,
   setMentorAvailabilityAction,
+  updateManagedUserAction,
 } from "@/app/(dashboard)/admin/users/actions";
 import { UserCreateForm } from "@/components/users/user-create-form";
 import { UserTable } from "@/components/users/user-table";
@@ -26,6 +27,10 @@ function getStatusMessage(status: { success?: string; error?: string }) {
     return { text: "Mentor availability updated for the current cycle.", tone: "success" as const };
   }
 
+  if (status.success === "user_updated") {
+    return { text: "User name and password updated successfully.", tone: "success" as const };
+  }
+
   if (status.error === "invalid_form") {
     return { text: "Please complete the form with valid values.", tone: "error" as const };
   }
@@ -36,6 +41,10 @@ function getStatusMessage(status: { success?: string; error?: string }) {
 
   if (status.error === "create_failed") {
     return { text: "Failed to create user account.", tone: "error" as const };
+  }
+
+  if (status.error === "update_failed") {
+    return { text: "Failed to update user account.", tone: "error" as const };
   }
 
   return null;
@@ -97,7 +106,11 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       </form>
 
       <UserCreateForm action={createUserAction} />
-      <UserTable users={users} onSetMentorAvailability={setMentorAvailabilityAction} />
+      <UserTable
+        users={users}
+        onSetMentorAvailability={setMentorAvailabilityAction}
+        onUpdateManagedUser={updateManagedUserAction}
+      />
     </section>
   );
 }

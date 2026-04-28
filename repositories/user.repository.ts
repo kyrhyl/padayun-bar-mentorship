@@ -114,6 +114,29 @@ export async function createUser(input: CreateUserInput): Promise<UserDocument> 
   return created.toObject() as UserDocument;
 }
 
+export async function updateManagedUserCredentialsByAdmin(params: {
+  userId: string;
+  name: string;
+  passwordHash: string;
+}): Promise<boolean> {
+  await connectToDatabase();
+
+  const result = await UserModel.updateOne(
+    {
+      _id: params.userId,
+      role: { $in: ["mentor", "mentee"] },
+    },
+    {
+      $set: {
+        name: params.name,
+        passwordHash: params.passwordHash,
+      },
+    },
+  ).exec();
+
+  return result.matchedCount > 0;
+}
+
 export async function setMentorAvailabilityByCycle(params: {
   mentorId: string;
   cycleId: string;

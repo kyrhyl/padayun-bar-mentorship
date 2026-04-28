@@ -1,8 +1,10 @@
 import type { UserDocument } from "@/models/User";
+import { UpdateUserDialog } from "@/components/users/update-user-dialog";
 
 interface UserTableProps {
   users: UserDocument[];
   onSetMentorAvailability: (formData: FormData) => void;
+  onUpdateManagedUser: (formData: FormData) => void;
 }
 
 function getMentorAvailabilityLabel(user: UserDocument): string {
@@ -17,7 +19,7 @@ function getMentorAvailabilityLabel(user: UserDocument): string {
   return "Available";
 }
 
-export function UserTable({ users, onSetMentorAvailability }: UserTableProps) {
+export function UserTable({ users, onSetMentorAvailability, onUpdateManagedUser }: UserTableProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="overflow-x-auto">
@@ -50,25 +52,30 @@ export function UserTable({ users, onSetMentorAvailability }: UserTableProps) {
                 <td className="px-4 py-3 text-slate-700">{getMentorAvailabilityLabel(user)}</td>
                 <td className="px-4 py-3 text-slate-700">{new Date(user.createdAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-slate-700">
-                  {user.role === "mentor" ? (
-                    <form action={onSetMentorAvailability} className="flex items-center gap-2">
-                      <input type="hidden" name="mentorId" value={user._id.toString()} />
-                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                        <input
-                          type="checkbox"
-                          name="isUnavailable"
-                          defaultChecked={user.assignmentAvailability === "unavailable"}
-                          className="h-4 w-4 rounded border-slate-300"
-                        />
-                        Unavailable
-                      </label>
-                      <button type="submit" className="rounded border border-slate-300 px-2 py-1 text-xs">
-                        Save
-                      </button>
-                    </form>
-                  ) : (
-                    "-"
-                  )}
+                  <div className="space-y-2">
+                    <UpdateUserDialog
+                      userId={user._id.toString()}
+                      currentName={user.name}
+                      onUpdateManagedUser={onUpdateManagedUser}
+                    />
+                    {user.role === "mentor" ? (
+                      <form action={onSetMentorAvailability} className="flex items-center gap-2">
+                        <input type="hidden" name="mentorId" value={user._id.toString()} />
+                        <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                          <input
+                            type="checkbox"
+                            name="isUnavailable"
+                            defaultChecked={user.assignmentAvailability === "unavailable"}
+                            className="h-4 w-4 rounded border-slate-300"
+                          />
+                          Unavailable
+                        </label>
+                        <button type="submit" className="rounded border border-slate-300 px-2 py-1 text-xs">
+                          Save
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))

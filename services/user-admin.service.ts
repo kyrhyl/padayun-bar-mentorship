@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 
 import {
   adminCreateUserSchema,
+  adminUpdateManagedUserSchema,
   mentorAvailabilitySchema,
   type AdminCreateUserInput,
 } from "@/lib/validators/user";
@@ -10,6 +11,7 @@ import {
   findUserByEmail,
   listManagedUsersForAdmin,
   setMentorAvailabilityByCycle,
+  updateManagedUserCredentialsByAdmin,
 } from "@/repositories/user.repository";
 
 function getCurrentCycleId(): string {
@@ -43,6 +45,28 @@ export async function listManagedUsersForAdminService(input?: {
   availability?: "available" | "unavailable";
 }) {
   return listManagedUsersForAdmin(input);
+}
+
+export async function updateManagedUserByAdminService(input: {
+  userId: string;
+  name: string;
+  newPassword: string;
+}) {
+  const parsed = adminUpdateManagedUserSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error("Invalid user data.");
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
+  const updated = await updateManagedUserCredentialsByAdmin({
+    userId: parsed.data.userId,
+    name: parsed.data.name,
+    passwordHash,
+  });
+
+  if (!updated) {
+    throw new Error("User not found.");
+  }
 }
 
 export async function setMentorAvailabilityService(input: {
