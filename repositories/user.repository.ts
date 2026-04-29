@@ -34,6 +34,11 @@ export async function listUsersByRole(role: UserRole): Promise<UserDocument[]> {
   return UserModel.find({ role }).sort({ name: 1 }).lean<UserDocument[]>().exec();
 }
 
+export async function countUsersByRole(role: UserRole): Promise<number> {
+  await connectToDatabase();
+  return UserModel.countDocuments({ role }).exec();
+}
+
 export async function listAvailableMentorsByCycle(cycleId: string): Promise<UserDocument[]> {
   await connectToDatabase();
 

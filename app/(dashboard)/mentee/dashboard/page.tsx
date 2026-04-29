@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { requireRole } from "@/lib/auth/authorization";
+import { perfLog, perfNow } from "@/lib/observability/perf";
 import { getMenteeDashboardService } from "@/services/dashboard.service";
 
 interface MenteeDashboardPageProps {
@@ -11,12 +12,18 @@ interface MenteeDashboardPageProps {
 }
 
 export default async function MenteeDashboardPage({ searchParams }: MenteeDashboardPageProps) {
+  const startedAt = perfNow();
   const session = await requireRole(["mentee", "admin"]);
   const params = await searchParams;
 
   const menteeDashboard = await getMenteeDashboardService(session.user.id, {
     page: params.submissionPage,
     limit: params.submissionLimit,
+  });
+
+  perfLog("route:/mentee/dashboard", startedAt, {
+    role: session.user.role,
+    submissions: menteeDashboard.recentSubmissions.length,
   });
 
   const previousSubmissionPage = Math.max(1, menteeDashboard.meta.page - 1);

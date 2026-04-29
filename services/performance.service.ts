@@ -1,5 +1,6 @@
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 import { performanceFilterSchema } from "@/lib/validators/performance";
+import { perfLog, perfNow } from "@/lib/observability/perf";
 import { isMentorAssignedToMentee, listAssignedMenteeIds } from "@/repositories/mentor-assignment.repository";
 import { listFeedbackBySubmissionIds } from "@/repositories/feedback.repository";
 import {
@@ -33,22 +34,6 @@ interface MenteePerformanceDetail {
   recentScores: Array<{ submissionId: string; score: number; updatedAt: Date }>;
 }
 
-const PERF_LOG_ENABLED = process.env.PERF_LOGS === "1";
-
-function logPerf(label: string, startedAt: number, meta?: Record<string, unknown>) {
-  if (!PERF_LOG_ENABLED) {
-    return;
-  }
-
-  const durationMs = Date.now() - startedAt;
-  if (meta) {
-    console.info(`[perf] ${label}: ${durationMs}ms`, meta);
-    return;
-  }
-
-  console.info(`[perf] ${label}: ${durationMs}ms`);
-}
-
 function getRangeStart(range: "7d" | "30d" | "90d" | "all"): Date | null {
   if (range === "all") {
     return null;
@@ -71,7 +56,7 @@ export async function getMentorPerformanceListService(
   meta: ReturnType<typeof buildPaginationMeta>;
   filters: { range: "7d" | "30d" | "90d" | "all"; subject?: string; page: number; limit: number };
 }> {
-  const startedAt = Date.now();
+  const startedAt = perfNow();
   const parsed = performanceFilterSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error("Invalid performance filters.");
@@ -79,7 +64,7 @@ export async function getMentorPerformanceListService(
 
   const menteeIds = await listAssignedMenteeIds(mentorId);
   const result = await getPerformanceListByMenteeIds(menteeIds, parsed.data);
-  logPerf("mentor-performance-list", startedAt, {
+  perfLog("mentor-performance-list", startedAt, {
     menteeCount: menteeIds.length,
     items: result.items.length,
     totalItems: result.meta.totalItems,
@@ -193,7 +178,7 @@ async function getMenteePerformanceDetail(
   menteeId: string,
   input: Record<string, unknown>,
 ): Promise<MenteePerformanceDetail> {
-  const startedAt = Date.now();
+  const startedAt = perfNow();
   const parsed = performanceFilterSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error("Invalid performance filters.");
@@ -221,7 +206,7 @@ async function getMenteePerformanceDetail(
     recentScores: aggregate.recentScores,
   };
 
-  logPerf("mentee-performance-detail", startedAt, {
+  perfLog("mentee-performance-detail", startedAt, {
     menteeId,
     submissions: aggregate.totalSubmissions,
     reviewedSubmissions: aggregate.reviewedSubmissions,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { requireRole } from "@/lib/auth/authorization";
+import { perfLog, perfNow } from "@/lib/observability/perf";
 import { getMentorPerformanceListService } from "@/services/performance.service";
 
 interface MentorPageProps {
@@ -8,6 +9,7 @@ interface MentorPageProps {
 }
 
 export default async function MentorPage({ searchParams }: MentorPageProps) {
+  const startedAt = perfNow();
   const session = await requireRole(["mentor", "admin"]);
   const _params = await searchParams;
 
@@ -15,6 +17,11 @@ export default async function MentorPage({ searchParams }: MentorPageProps) {
     range: "all",
     page: 1,
     limit: 20,
+  });
+
+  perfLog("route:/mentor", startedAt, {
+    role: session.user.role,
+    items: kpis.items.length,
   });
 
   return (
