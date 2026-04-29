@@ -122,6 +122,7 @@ export async function createUser(input: CreateUserInput): Promise<UserDocument> 
 export async function updateManagedUserCredentialsByAdmin(params: {
   userId: string;
   name: string;
+  email: string;
   passwordHash: string;
 }): Promise<boolean> {
   await connectToDatabase();
@@ -134,6 +135,7 @@ export async function updateManagedUserCredentialsByAdmin(params: {
     {
       $set: {
         name: params.name,
+        email: params.email,
         passwordHash: params.passwordHash,
       },
     },

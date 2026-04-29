@@ -50,6 +50,7 @@ export async function listManagedUsersForAdminService(input?: {
 export async function updateManagedUserByAdminService(input: {
   userId: string;
   name: string;
+  email: string;
   newPassword: string;
 }) {
   const parsed = adminUpdateManagedUserSchema.safeParse(input);
@@ -57,10 +58,16 @@ export async function updateManagedUserByAdminService(input: {
     throw new Error("Invalid user data.");
   }
 
+  const existingUser = await findUserByEmail(parsed.data.email);
+  if (existingUser && existingUser._id.toString() !== parsed.data.userId) {
+    throw new Error("Email already exists.");
+  }
+
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
   const updated = await updateManagedUserCredentialsByAdmin({
     userId: parsed.data.userId,
     name: parsed.data.name,
+    email: parsed.data.email,
     passwordHash,
   });
 

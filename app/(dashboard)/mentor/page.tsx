@@ -18,6 +18,7 @@ export default async function MentorPage({ searchParams }: MentorPageProps) {
     page: 1,
     limit: 20,
   });
+  const totalPendingReviews = kpis.items.reduce((sum, item) => sum + item.pendingReviews, 0);
 
   perfLog("route:/mentor", startedAt, {
     role: session.user.role,
@@ -30,6 +31,16 @@ export default async function MentorPage({ searchParams }: MentorPageProps) {
         <h1 className="text-2xl font-semibold text-slate-900">Mentor Dashboard</h1>
         <p className="text-sm text-slate-600">Per-mentee KPI cards for workload and progress at a glance.</p>
       </div>
+
+      {totalPendingReviews > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          You have <span className="font-semibold">{totalPendingReviews}</span> pending submission
+          {totalPendingReviews === 1 ? "" : "s"} to review.
+          <Link href="/mentor/feedback" className="ml-2 font-medium underline">
+            Go to review queue
+          </Link>
+        </div>
+      ) : null}
 
       {kpis.items.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">

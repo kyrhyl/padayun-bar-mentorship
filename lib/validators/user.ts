@@ -14,6 +14,7 @@ export type AdminCreateUserInput = z.infer<typeof adminCreateUserSchema>;
 export const adminUpdateManagedUserSchema = z.object({
   userId: z.string().trim().min(1),
   name: z.string().trim().min(2).max(120),
+  email: z.string().email().trim().toLowerCase(),
   newPassword: z.string().min(8).max(128),
 });
 

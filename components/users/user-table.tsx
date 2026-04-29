@@ -56,6 +56,7 @@ export function UserTable({ users, onSetMentorAvailability, onUpdateManagedUser 
                     <UpdateUserDialog
                       userId={user._id.toString()}
                       currentName={user.name}
+                      currentEmail={user.email}
                       onUpdateManagedUser={onUpdateManagedUser}
                     />
                     {user.role === "mentor" ? (

@@ -69,9 +69,15 @@ export async function updateManagedUserAction(formData: FormData) {
 
   const userId = formData.get("userId");
   const name = formData.get("name");
+  const email = formData.get("email");
   const newPassword = formData.get("newPassword");
 
-  if (typeof userId !== "string" || typeof name !== "string" || typeof newPassword !== "string") {
+  if (
+    typeof userId !== "string" ||
+    typeof name !== "string" ||
+    typeof email !== "string" ||
+    typeof newPassword !== "string"
+  ) {
     redirect("/admin/users?error=invalid_form");
   }
 
@@ -79,9 +85,14 @@ export async function updateManagedUserAction(formData: FormData) {
     await updateManagedUserByAdminService({
       userId,
       name,
+      email,
       newPassword,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "Email already exists.") {
+      redirect("/admin/users?error=email_exists");
+    }
+
     redirect("/admin/users?error=update_failed");
   }
 

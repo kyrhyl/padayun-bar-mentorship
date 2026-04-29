@@ -5,24 +5,25 @@ import { useState } from "react";
 interface UpdateUserDialogProps {
   userId: string;
   currentName: string;
+  currentEmail: string;
   onUpdateManagedUser: (formData: FormData) => void;
 }
 
-export function UpdateUserDialog({ userId, currentName, onUpdateManagedUser }: UpdateUserDialogProps) {
+export function UpdateUserDialog({ userId, currentName, currentEmail, onUpdateManagedUser }: UpdateUserDialogProps) {
   const [open, setOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className="rounded border border-slate-300 px-2 py-1 text-xs">
-        Edit name/password
+        Edit user
       </button>
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Update User Credentials</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Update User Profile</h3>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -42,6 +43,16 @@ export function UpdateUserDialog({ userId, currentName, onUpdateManagedUser }: U
                   required
                   minLength={2}
                   defaultValue={currentName}
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-xs text-slate-700">
+                Email
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  defaultValue={currentEmail}
                   className="mt-1 w-full rounded border border-slate-300 px-2 py-2 text-sm"
                 />
               </label>
