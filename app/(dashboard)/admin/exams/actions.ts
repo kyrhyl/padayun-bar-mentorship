@@ -107,11 +107,11 @@ export async function togglePublishExamAction(examId: string, isPublished: boole
   revalidatePath("/mentee/exams");
 }
 
-export async function regenerateExamQuestionsAction(examId: string, force: boolean) {
+export async function regenerateExamQuestionsAction(examId: string) {
   await requireRole(["admin"]);
 
   try {
-    await regenerateExamQuestionSetService(examId, { force });
+    await regenerateExamQuestionSetService(examId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "regeneration_failed";
     const encoded = encodeURIComponent(message);

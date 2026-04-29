@@ -123,18 +123,15 @@ export default async function AdminExamsPage({ searchParams }: AdminExamsPagePro
                         </button>
                       </form>
                       {exam.questionMode === "random_pool" ? (
-                        <form action={regenerateExamQuestionsAction.bind(null, exam._id.toString(), false)}>
-                          <button type="submit" className="underline text-slate-700">
-                            Regenerate
-                          </button>
-                        </form>
-                      ) : null}
-                      {exam.questionMode === "random_pool" ? (
-                        <form action={regenerateExamQuestionsAction.bind(null, exam._id.toString(), true)}>
-                          <button type="submit" className="underline text-amber-700">
-                            Force Regenerate
-                          </button>
-                        </form>
+                        exam.isPublished ? (
+                          <span className="text-xs text-slate-500">Unpublish to regenerate</span>
+                        ) : (
+                          <form action={regenerateExamQuestionsAction.bind(null, exam._id.toString())}>
+                            <button type="submit" className="underline text-slate-700">
+                              Regenerate
+                            </button>
+                          </form>
+                        )
                       ) : null}
                       <form action={deleteExamAction.bind(null, exam._id.toString())}>
                         <button type="submit" className="underline text-red-700">

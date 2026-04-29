@@ -128,11 +128,7 @@ export async function getExamWithQuestionsService(examId: string) {
 
   let resolvedIds = getResolvedQuestionIdsForExam(exam);
   if (!resolvedIds.length && exam.questionMode === "random_pool" && exam.poolConfig) {
-    try {
-      resolvedIds = await regenerateExamQuestionSetService(examId, { force: true });
-    } catch {
-      return null;
-    }
+    return null;
   }
 
   if (!resolvedIds.length) {
@@ -253,7 +249,7 @@ export async function toggleExamPublishService(examId: string, isPublished: bool
     }
 
     if (exam.questionMode === "random_pool" && !(exam.generatedQuestionIds?.length)) {
-      await regenerateExamQuestionSetService(examId, { force: true });
+      await regenerateExamQuestionSetService(examId);
     }
 
     publishTimestamp = exam.publishedAt ?? new Date();
@@ -306,7 +302,7 @@ export async function markPublishedExamNoticeSeenService(menteeId: string) {
   });
 }
 
-export async function regenerateExamQuestionSetService(examId: string, options?: { force?: boolean }) {
+export async function regenerateExamQuestionSetService(examId: string) {
   const exam = await findExamById(examId);
   if (!exam) {
     throw new Error("Exam not found.");
@@ -316,8 +312,12 @@ export async function regenerateExamQuestionSetService(examId: string, options?:
     throw new Error("Exam is not configured for random pool.");
   }
 
+  if (exam.isPublished) {
+    throw new Error("Unpublish exam before regenerating question set.");
+  }
+
   const inProgressCount = await countInProgressSubmissionsByExam(examId);
-  if (inProgressCount > 0 && !options?.force) {
+  if (inProgressCount > 0) {
     throw new Error("Cannot regenerate while submissions are in progress.");
   }
 
