@@ -58,6 +58,7 @@ export function ExamAttemptClient({
   const [isSubmitted, setIsSubmitted] = useState(initialIsSubmitted);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const startedAt = useMemo(() => new Date(startedAtIso).getTime(), [startedAtIso]);
   const deadlineMs = useMemo(
@@ -118,6 +119,7 @@ export function ExamAttemptClient({
     }
 
     setError(null);
+    setSuccess(null);
 
     await flush();
 
@@ -137,7 +139,10 @@ export function ExamAttemptClient({
     }
 
     setIsSubmitted(Boolean(data.submission?.isSubmitted));
-    router.refresh();
+    setSuccess("Exam submitted successfully. Redirecting to dashboard...");
+    setTimeout(() => {
+      router.push("/mentee/dashboard");
+    }, 1400);
   }, [flush, isSubmitted, router, submissionId]);
 
   useEffect(() => {
@@ -234,6 +239,7 @@ export function ExamAttemptClient({
       />
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
 
       <div className="flex items-center gap-3">
         <button

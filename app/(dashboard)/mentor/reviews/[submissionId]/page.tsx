@@ -11,6 +11,34 @@ interface MentorReviewPageProps {
   params: Promise<{ submissionId: string }>;
 }
 
+function parsePerQuestionComments(comments: string | undefined, questionCount: number): string[] {
+  if (!questionCount) {
+    return [];
+  }
+
+  const parsed = Array.from({ length: questionCount }, () => "");
+  const source = (comments ?? "").trim();
+  if (!source) {
+    return parsed;
+  }
+
+  const regex = /Q(\d+):\s*([\s\S]*?)(?=\n\nQ\d+:|$)/g;
+  let found = false;
+  for (const match of source.matchAll(regex)) {
+    found = true;
+    const index = Number(match[1]) - 1;
+    if (index >= 0 && index < parsed.length) {
+      parsed[index] = match[2].trim();
+    }
+  }
+
+  if (!found) {
+    parsed[0] = source;
+  }
+
+  return parsed;
+}
+
 function resolveRubric(feedback: {
   rubric?: { correctResponse: number; law: number; reasoning: number; logic: number; grammar: number };
   clr?: { conclusion: number; law: number; reasoning: number };
@@ -49,6 +77,10 @@ export default async function MentorReviewPage({ params }: MentorReviewPageProps
 
   const answerMap = new Map(
     (context.submission.answers ?? []).map((item) => [item.questionId, item.answer]),
+  );
+  const commentsByQuestion = parsePerQuestionComments(
+    context.feedback?.comments,
+    context.questions.length,
   );
   const rubric = resolveRubric(context.feedback as { rubric?: { correctResponse: number; law: number; reasoning: number; logic: number; grammar: number }; clr?: { conclusion: number; law: number; reasoning: number } } | null);
 
@@ -109,7 +141,7 @@ export default async function MentorReviewPage({ params }: MentorReviewPageProps
                     <label className="block text-xs text-neutral-700">
                       <RichFeedbackEditor
                         name="comments"
-                        defaultValue={context.feedback?.comments ?? ""}
+                        defaultValue={commentsByQuestion[index] ?? ""}
                         placeholder="Write mentor feedback for this answer..."
                       />
                     </label>

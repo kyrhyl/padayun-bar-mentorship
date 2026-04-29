@@ -32,10 +32,12 @@ export async function saveFeedbackAction(formData: FormData) {
   const grammar = parseScoreEntries(formData, "grammar");
   const commentsByQuestion = formData
     .getAll("comments")
-    .map((value) => String(value).trim())
-    .filter(Boolean);
-  const comments = commentsByQuestion.length
-    ? commentsByQuestion.map((value, index) => `Q${index + 1}: ${value}`).join("\n\n")
+    .map((value) => String(value).trim());
+  const nonEmptyComments = commentsByQuestion
+    .map((value, index) => (value ? `Q${index + 1}: ${value}` : null))
+    .filter((value): value is string => Boolean(value));
+  const comments = nonEmptyComments.length
+    ? nonEmptyComments.join("\n\n")
     : "No detailed comments provided.";
 
   await saveFeedbackService(session.user.id, {

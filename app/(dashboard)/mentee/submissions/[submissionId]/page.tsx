@@ -8,6 +8,34 @@ interface MenteeSubmissionDetailPageProps {
   params: Promise<{ submissionId: string }>;
 }
 
+function parsePerQuestionComments(comments: string | undefined, questionCount: number): string[] {
+  if (!questionCount) {
+    return [];
+  }
+
+  const parsed = Array.from({ length: questionCount }, () => "");
+  const source = (comments ?? "").trim();
+  if (!source) {
+    return parsed;
+  }
+
+  const regex = /Q(\d+):\s*([\s\S]*?)(?=\n\nQ\d+:|$)/g;
+  let found = false;
+  for (const match of source.matchAll(regex)) {
+    found = true;
+    const index = Number(match[1]) - 1;
+    if (index >= 0 && index < parsed.length) {
+      parsed[index] = match[2].trim();
+    }
+  }
+
+  if (!found) {
+    parsed[0] = source;
+  }
+
+  return parsed;
+}
+
 function resolveRubric(feedback: {
   rubric?: { correctResponse: number; law: number; reasoning: number; logic: number; grammar: number };
   clr?: { conclusion: number; law: number; reasoning: number };
@@ -54,6 +82,7 @@ export default async function MenteeSubmissionDetailPage({ params }: MenteeSubmi
   const answerMap = new Map(
     (detail.submission.answers ?? []).map((item) => [item.questionId, item.answer]),
   );
+  const commentsByQuestion = parsePerQuestionComments(detail.feedback?.comments, detail.questions.length);
   const rubric = resolveRubric(detail.feedback as { rubric?: { correctResponse: number; law: number; reasoning: number; logic: number; grammar: number }; clr?: { conclusion: number; law: number; reasoning: number } } | null);
 
   return (
@@ -101,6 +130,11 @@ export default async function MenteeSubmissionDetailPage({ params }: MenteeSubmi
           {detail.questions.map((question, index) => {
             const questionId = question._id.toString();
             const answer = answerMap.get(questionId) ?? "";
+            const questionComment = commentsByQuestion[index] ?? "";
+            const renderedComment =
+              detail.questions.length === 1
+                ? questionComment || detail.feedback?.comments || ""
+                : questionComment;
 
             return (
               <article key={questionId} className="space-y-3 rounded-lg border border-slate-200 bg-white p-5">
@@ -130,7 +164,7 @@ export default async function MenteeSubmissionDetailPage({ params }: MenteeSubmi
                         </p>
                         <div
                           className="prose prose-sm max-w-none text-slate-800"
-                          dangerouslySetInnerHTML={{ __html: sanitizeFeedbackHtml(detail.feedback.comments) }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeFeedbackHtml(renderedComment) }}
                         />
                       </>
                     )}
