@@ -28,7 +28,7 @@ export async function listPublishedExams(params: {
 
   const [items, totalItems] = await Promise.all([
     ExamModel.find(filter)
-      .sort({ createdAt: -1 })
+      .sort({ publishedAt: -1, createdAt: -1 })
       .skip((params.page - 1) * params.limit)
       .limit(params.limit)
       .lean<ExamDocument[]>()
@@ -59,6 +59,7 @@ export async function createExam(data: {
   durationMinutes: number;
   instructions: string;
   isPublished: boolean;
+  publishedAt?: Date | null;
   createdBy: string;
 }): Promise<ExamDocument> {
   await connectToDatabase();
@@ -127,6 +128,7 @@ export async function updateExamById(
     durationMinutes: number;
     instructions: string;
     isPublished: boolean;
+    publishedAt?: Date | null;
   },
 ): Promise<ExamDocument | null> {
   await connectToDatabase();
@@ -144,9 +146,32 @@ export async function deleteExamById(examId: string): Promise<void> {
   await ExamModel.findByIdAndDelete(examId).exec();
 }
 
-export async function toggleExamPublish(examId: string, isPublished: boolean): Promise<void> {
+export async function toggleExamPublish(params: {
+  examId: string;
+  isPublished: boolean;
+  publishedAt?: Date | null;
+}): Promise<void> {
   await connectToDatabase();
-  await ExamModel.updateOne({ _id: examId }, { $set: { isPublished } }).exec();
+  await ExamModel.updateOne(
+    { _id: params.examId },
+    {
+      $set: {
+        isPublished: params.isPublished,
+        publishedAt: params.isPublished ? (params.publishedAt ?? new Date()) : null,
+      },
+    },
+  ).exec();
+}
+
+export async function findLatestPublishedExamMeta(): Promise<
+  Pick<ExamDocument, "_id" | "title" | "publishedAt" | "createdAt"> | null
+> {
+  await connectToDatabase();
+  return ExamModel.findOne({ isPublished: true })
+    .sort({ publishedAt: -1, createdAt: -1 })
+    .select({ _id: 1, title: 1, publishedAt: 1, createdAt: 1 })
+    .lean<Pick<ExamDocument, "_id" | "title" | "publishedAt" | "createdAt">>()
+    .exec();
 }
 
 export async function updateExamQuestionGeneration(params: {

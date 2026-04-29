@@ -162,3 +162,19 @@ export async function setMentorAvailabilityByCycle(params: {
     },
   ).exec();
 }
+
+export async function updateLastSeenPublishedExamAt(params: {
+  userId: string;
+  seenAt: Date;
+}): Promise<void> {
+  await connectToDatabase();
+
+  await UserModel.updateOne(
+    { _id: params.userId, role: "mentee" },
+    {
+      $max: {
+        lastSeenPublishedExamAt: params.seenAt,
+      },
+    },
+  ).exec();
+}

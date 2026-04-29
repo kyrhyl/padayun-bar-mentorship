@@ -21,6 +21,7 @@ export interface ExamDocument {
   durationMinutes: number;
   instructions: string;
   isPublished: boolean;
+  publishedAt?: Date | null;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -104,6 +105,11 @@ const examSchema = new Schema<ExamDocument>(
       default: false,
       index: true,
     },
+    publishedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     createdBy: {
       type: String,
       required: true,
@@ -116,6 +122,7 @@ const examSchema = new Schema<ExamDocument>(
 );
 
 examSchema.index({ isPublished: 1, createdAt: -1 });
+examSchema.index({ isPublished: 1, publishedAt: -1, createdAt: -1 });
 
 export const ExamModel =
   (models.Exam as Model<ExamDocument> | undefined) ?? model<ExamDocument>("Exam", examSchema);

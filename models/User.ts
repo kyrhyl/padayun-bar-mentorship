@@ -10,6 +10,7 @@ export interface UserDocument {
   role: UserRole;
   assignmentAvailability?: "available" | "unavailable";
   unavailableCycleId?: string | null;
+  lastSeenPublishedExamAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +47,11 @@ const userSchema = new Schema<UserDocument>(
     },
     unavailableCycleId: {
       type: String,
+      default: null,
+      index: true,
+    },
+    lastSeenPublishedExamAt: {
+      type: Date,
       default: null,
       index: true,
     },

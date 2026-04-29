@@ -30,8 +30,8 @@ const rubricSchema = new Schema<RubricBreakdown>(
     law: {
       type: Number,
       required: true,
-      min: 1,
-      max: 5,
+      min: 0,
+      max: 1,
     },
     reasoning: {
       type: Number,

@@ -41,6 +41,19 @@ export default async function MenteeDashboardPage({ searchParams }: MenteeDashbo
         </p>
       </div>
 
+      {menteeDashboard.newExamNotice ? (
+        <article className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p>
+              New exam available: <span className="font-semibold">{menteeDashboard.newExamNotice.examTitle}</span>
+            </p>
+            <Link href="/mentee/exams" className="font-medium underline">
+              View exams
+            </Link>
+          </div>
+        </article>
+      ) : null}
+
       <div className="grid gap-2.5 md:grid-cols-3">
         <article className="ui-card p-3">
           <h2 className="text-xs font-semibold text-slate-700">Total submissions</h2>

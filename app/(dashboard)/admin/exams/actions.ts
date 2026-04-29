@@ -90,7 +90,13 @@ export async function updateExamAction(examId: string, formData: FormData) {
 
 export async function deleteExamAction(examId: string) {
   await requireRole(["admin"]);
-  await deleteExamService(examId);
+  try {
+    await deleteExamService(examId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "delete_failed";
+    redirect(`/admin/exams?error=${encodeURIComponent(message)}`);
+  }
+
   revalidatePath("/admin/exams");
 }
 

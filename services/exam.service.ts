@@ -5,13 +5,18 @@ import {
   createExam,
   deleteExamById,
   findExamById,
+  findLatestPublishedExamMeta,
   listExamsForAdmin,
   listPublishedExams,
   toggleExamPublish,
   updateExamQuestionGeneration,
   updateExamById,
 } from "@/repositories/exam.repository";
-import { countInProgressSubmissionsByExam } from "@/repositories/submission.repository";
+import {
+  countInProgressSubmissionsByExam,
+  countSubmissionsByExam,
+} from "@/repositories/submission.repository";
+import { updateLastSeenPublishedExamAt } from "@/repositories/user.repository";
 
 function normalizeExamInput(input: ExamInput) {
   if ("questionMode" in input && input.questionMode === "manual") {
@@ -179,6 +184,7 @@ export async function createExamService(input: ExamInput & { createdBy: string }
 
   return createExam({
     ...normalized,
+    publishedAt: normalized.isPublished ? new Date() : null,
     createdBy: input.createdBy,
   });
 }
@@ -213,7 +219,14 @@ export async function updateExamService(examId: string, input: ExamInput) {
       })()
       : normalized;
 
-  const updated = await updateExamById(examId, payload);
+  const nextPublishedAt = payload.isPublished
+    ? existingExam.publishedAt ?? (!existingExam.isPublished ? new Date() : null)
+    : null;
+
+  const updated = await updateExamById(examId, {
+    ...payload,
+    publishedAt: nextPublishedAt,
+  });
   if (!updated) {
     throw new Error("Exam not found.");
   }
@@ -222,10 +235,17 @@ export async function updateExamService(examId: string, input: ExamInput) {
 }
 
 export async function deleteExamService(examId: string) {
+  const linkedSubmissions = await countSubmissionsByExam(examId);
+  if (linkedSubmissions > 0) {
+    throw new Error("Cannot delete exam with submissions. Unpublish it instead.");
+  }
+
   await deleteExamById(examId);
 }
 
 export async function toggleExamPublishService(examId: string, isPublished: boolean) {
+  let publishTimestamp: Date | null = null;
+
   if (isPublished) {
     const exam = await findExamById(examId);
     if (!exam) {
@@ -235,9 +255,55 @@ export async function toggleExamPublishService(examId: string, isPublished: bool
     if (exam.questionMode === "random_pool" && !(exam.generatedQuestionIds?.length)) {
       await regenerateExamQuestionSetService(examId, { force: true });
     }
+
+    publishTimestamp = exam.publishedAt ?? new Date();
   }
 
-  await toggleExamPublish(examId, isPublished);
+  await toggleExamPublish({
+    examId,
+    isPublished,
+    publishedAt: publishTimestamp,
+  });
+}
+
+export async function getLatestPublishedExamNoticeForMentee(user: {
+  role: "admin" | "mentor" | "mentee";
+  lastSeenPublishedExamAt?: Date | null;
+}) {
+  if (user.role !== "mentee") {
+    return null;
+  }
+
+  const latest = await findLatestPublishedExamMeta();
+  if (!latest) {
+    return null;
+  }
+
+  const latestPublishedAt = latest.publishedAt ?? latest.createdAt;
+  const lastSeen = user.lastSeenPublishedExamAt;
+  const hasNew = !lastSeen || latestPublishedAt.getTime() > lastSeen.getTime();
+
+  if (!hasNew) {
+    return null;
+  }
+
+  return {
+    examId: latest._id.toString(),
+    examTitle: latest.title,
+    publishedAt: latestPublishedAt,
+  };
+}
+
+export async function markPublishedExamNoticeSeenService(menteeId: string) {
+  const latest = await findLatestPublishedExamMeta();
+  if (!latest) {
+    return;
+  }
+
+  await updateLastSeenPublishedExamAt({
+    userId: menteeId,
+    seenAt: latest.publishedAt ?? latest.createdAt,
+  });
 }
 
 export async function regenerateExamQuestionSetService(examId: string, options?: { force?: boolean }) {

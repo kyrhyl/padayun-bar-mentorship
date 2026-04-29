@@ -1,6 +1,7 @@
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 import { listPageSchema, mentorReviewFilterSchema } from "@/lib/validators/feedback";
 import { perfLog, perfNow } from "@/lib/observability/perf";
+import { getLatestPublishedExamNoticeForMentee } from "@/services/exam.service";
 import {
   listAssignedMenteeIds,
   listMentorAssignments,
@@ -29,6 +30,7 @@ export async function getMenteeDashboardService(
   recentSubmissions: Awaited<ReturnType<typeof listSubmissionsByUserId>>["items"];
   recentScores: Array<{ submissionId: string; score: number }>;
   weakSubjects: Array<{ subject: string; averageScore: number }>;
+  newExamNotice: { examId: string; examTitle: string; publishedAt: Date } | null;
   meta: ReturnType<typeof buildPaginationMeta>;
 }> {
   const startedAt = perfNow();
@@ -37,13 +39,24 @@ export async function getMenteeDashboardService(
     throw new Error("Invalid dashboard filters.");
   }
 
-  const submissions = await listSubmissionsByUserId(menteeId, parsed.data);
+  const [submissions, menteeNoticeContext] = await Promise.all([
+    listSubmissionsByUserId(menteeId, parsed.data),
+    listUsersByIds([menteeId]),
+  ]);
+  const mentee = menteeNoticeContext[0];
+  const newExamNotice = mentee
+    ? await getLatestPublishedExamNoticeForMentee({
+        role: mentee.role,
+        lastSeenPublishedExamAt: mentee.lastSeenPublishedExamAt,
+      })
+    : null;
 
   if (!submissions.items.length) {
     const result = {
       recentSubmissions: submissions.items,
       recentScores: [],
       weakSubjects: [],
+      newExamNotice,
       meta: buildPaginationMeta({
         page: parsed.data.page,
         limit: parsed.data.limit,
@@ -123,6 +136,7 @@ export async function getMenteeDashboardService(
     recentSubmissions: submissions.items,
     recentScores,
     weakSubjects,
+    newExamNotice,
     meta: buildPaginationMeta({
       page: parsed.data.page,
       limit: parsed.data.limit,
@@ -135,6 +149,7 @@ export async function getMenteeDashboardService(
     submissions: submissions.items.length,
     recentScores: recentScores.length,
     weakSubjects: weakSubjects.length,
+    hasNewExamNotice: Boolean(newExamNotice),
   });
 
   return result;

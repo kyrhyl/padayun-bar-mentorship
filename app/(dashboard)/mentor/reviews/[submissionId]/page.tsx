@@ -72,7 +72,15 @@ export default async function MentorReviewPage({ params }: MentorReviewPageProps
         <p className="text-sm text-slate-700">{context.exam.instructions}</p>
       </article>
 
-      <form action={saveFeedbackAction} className="space-y-4 rounded-2xl border border-neutral-300 bg-white p-5 shadow-[0_8px_22px_rgba(0,0,0,0.06)]">
+      {context.questions.length === 0 ? (
+        <article className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">
+          This exam was removed and no linked question prompts are available. You can still review this
+          submission from the queue list, but detailed per-question scoring is unavailable for this record.
+        </article>
+      ) : null}
+
+      {context.questions.length > 0 ? (
+        <form action={saveFeedbackAction} className="space-y-4 rounded-2xl border border-neutral-300 bg-white p-5 shadow-[0_8px_22px_rgba(0,0,0,0.06)]">
         <input type="hidden" name="submissionId" value={context.submission._id.toString()} />
 
         <h2 className="text-lg font-semibold text-slate-900">Per-Question Review (0.25 steps)</h2>
@@ -159,7 +167,8 @@ export default async function MentorReviewPage({ params }: MentorReviewPageProps
         >
           Save Feedback
         </button>
-      </form>
+        </form>
+      ) : null}
     </section>
   );
 }

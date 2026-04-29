@@ -3,7 +3,10 @@ import Link from "next/link";
 import { ExamPagination } from "@/components/exams/exam-pagination";
 import { requireRole } from "@/lib/auth/authorization";
 import { BAR_SUBJECT_OPTIONS } from "@/lib/constants/bar-subjects";
-import { listPublishedExamsService } from "@/services/exam.service";
+import {
+  listPublishedExamsService,
+  markPublishedExamNoticeSeenService,
+} from "@/services/exam.service";
 
 interface MenteeExamsPageProps {
   searchParams: Promise<{
@@ -14,8 +17,12 @@ interface MenteeExamsPageProps {
 }
 
 export default async function MenteeExamsPage({ searchParams }: MenteeExamsPageProps) {
-  await requireRole(["mentee", "admin"]);
+  const session = await requireRole(["mentee", "admin"]);
   const params = await searchParams;
+
+  if (session.user.role === "mentee") {
+    await markPublishedExamNoticeSeenService(session.user.id);
+  }
 
   const exams = await listPublishedExamsService({
     subject: params.subject,

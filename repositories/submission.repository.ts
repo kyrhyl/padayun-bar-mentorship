@@ -56,6 +56,11 @@ export async function countInProgressSubmissionsByExam(examId: string): Promise<
   return SubmissionModel.countDocuments({ examId, isSubmitted: false }).exec();
 }
 
+export async function countSubmissionsByExam(examId: string): Promise<number> {
+  await connectToDatabase();
+  return SubmissionModel.countDocuments({ examId }).exec();
+}
+
 export async function updateSubmissionAnswer(params: {
   submissionId: string;
   userId: string;

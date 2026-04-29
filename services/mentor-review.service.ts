@@ -108,17 +108,13 @@ export async function getReviewContextService(mentorId: string, submissionId: st
   const [mentee] = await listUsersByIds([submission.userId]);
   const [exam] = await listExamsByIds([submission.examId]);
 
-  if (!exam) {
-    throw new Error("Exam not found.");
-  }
-
   const resolvedQuestionIds = submission.resolvedQuestionIds?.length
     ? submission.resolvedQuestionIds
-    : exam.questionIds?.length
+    : exam?.questionIds?.length
       ? exam.questionIds
-      : exam.generatedQuestionIds?.length
+      : exam?.generatedQuestionIds?.length
         ? exam.generatedQuestionIds
-        : exam.questionId
+        : exam?.questionId
           ? [exam.questionId]
           : [];
   const allQuestions = resolvedQuestionIds.length ? await listQuestionsByIds(resolvedQuestionIds) : [];
@@ -127,15 +123,16 @@ export async function getReviewContextService(mentorId: string, submissionId: st
     .map((questionId) => questionMap.get(questionId))
     .filter((question): question is NonNullable<typeof question> => Boolean(question));
 
-  if (!questions.length) {
-    throw new Error("Question not found.");
-  }
-
   const feedback = await findFeedbackBySubmissionId(submissionId);
 
   return {
     submission,
-    exam,
+    exam: exam ?? {
+      title: "Archived exam",
+      subject: "Unknown Subject",
+      topic: "Unknown Topic",
+      instructions: "Exam details are no longer available.",
+    },
     questions,
     mentee,
     feedback,
